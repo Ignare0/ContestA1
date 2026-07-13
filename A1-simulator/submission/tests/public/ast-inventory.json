@@ -1,0 +1,809 @@
+{
+  "aggregate": {
+    "data_types": {
+      "FixedSizeUnpackedArrayType": 861,
+      "PackedArrayType": 86334,
+      "PredefinedIntegerType": 5369,
+      "ScalarType": 67442,
+      "StringType": 48,
+      "VoidType": 125
+    },
+    "expressions": {
+      "Assignment": 35947,
+      "BinaryOp": 4424,
+      "Call": 189,
+      "Concatenation": 1712,
+      "ConditionalOp": 414,
+      "Conversion": 10717,
+      "ElementSelect": 1057,
+      "EmptyArgument": 5637,
+      "IntegerLiteral": 12161,
+      "NamedValue": 85174,
+      "RangeSelect": 701,
+      "Replication": 28,
+      "StringLiteral": 131,
+      "UnaryOp": 1887
+    },
+    "statements": {
+      "Block": 13536,
+      "Case": 16,
+      "Conditional": 7224,
+      "Empty": 29,
+      "ExpressionStatement": 13319,
+      "ForLoop": 14,
+      "List": 1705,
+      "RepeatLoop": 2,
+      "Timed": 1514,
+      "VariableDeclaration": 14,
+      "WhileLoop": 3
+    },
+    "symbols": {
+      "ContinuousAssign": 17087,
+      "FormalArgument": 4,
+      "GenerateBlock": 132,
+      "GenerateBlockArray": 7,
+      "Genvar": 3,
+      "Instance": 1820,
+      "InstanceBody": 1820,
+      "Net": 35192,
+      "Parameter": 203,
+      "Port": 15176,
+      "ProceduralBlock": 1501,
+      "StatementBlock": 14,
+      "Subroutine": 2,
+      "Variable": 6600
+    },
+    "system_calls": {
+      "$clog2": 5,
+      "$display": 37,
+      "$error": 7,
+      "$fclose": 10,
+      "$fdisplay": 24,
+      "$fgets": 12,
+      "$finish": 44,
+      "$fopen": 24,
+      "$fscanf": 13,
+      "$readmemh": 2,
+      "$unsigned": 1
+    },
+    "timing_controls": {
+      "Delay": 24,
+      "EventList": 17,
+      "ImplicitEvent": 19,
+      "SignalEvent": 1488
+    }
+  },
+  "cases": {
+    "GEMM": {
+      "data_types": {
+        "FixedSizeUnpackedArrayType": 576,
+        "PackedArrayType": 80470,
+        "PredefinedIntegerType": 967,
+        "ScalarType": 63968,
+        "StringType": 4,
+        "VoidType": 10
+      },
+      "expressions": {
+        "Assignment": 34139,
+        "BinaryOp": 3100,
+        "Call": 14,
+        "Concatenation": 1561,
+        "ConditionalOp": 353,
+        "Conversion": 8477,
+        "ElementSelect": 592,
+        "EmptyArgument": 5383,
+        "IntegerLiteral": 9722,
+        "NamedValue": 80463,
+        "RangeSelect": 448,
+        "StringLiteral": 10,
+        "UnaryOp": 1733
+      },
+      "statements": {
+        "Block": 13179,
+        "Conditional": 6998,
+        "Empty": 2,
+        "ExpressionStatement": 11928,
+        "List": 1431,
+        "Timed": 1429,
+        "WhileLoop": 1
+      },
+      "symbols": {
+        "ContinuousAssign": 16838,
+        "Instance": 1779,
+        "InstanceBody": 1779,
+        "Net": 34729,
+        "Port": 14842,
+        "ProceduralBlock": 1428,
+        "Variable": 5950
+      },
+      "system_calls": {
+        "$display": 3,
+        "$fclose": 2,
+        "$fdisplay": 2,
+        "$fgets": 1,
+        "$finish": 3,
+        "$fopen": 2,
+        "$fscanf": 1
+      },
+      "timing_controls": {
+        "Delay": 2,
+        "SignalEvent": 1427
+      },
+      "top_instances": [
+        "tb2"
+      ]
+    },
+    "alu": {
+      "data_types": {
+        "PackedArrayType": 174,
+        "PredefinedIntegerType": 54,
+        "ScalarType": 39,
+        "StringType": 4,
+        "VoidType": 8
+      },
+      "expressions": {
+        "Assignment": 40,
+        "BinaryOp": 17,
+        "Call": 12,
+        "Concatenation": 4,
+        "ConditionalOp": 4,
+        "Conversion": 39,
+        "ElementSelect": 2,
+        "EmptyArgument": 8,
+        "IntegerLiteral": 48,
+        "NamedValue": 90,
+        "RangeSelect": 5,
+        "StringLiteral": 10
+      },
+      "statements": {
+        "Block": 15,
+        "Case": 1,
+        "Conditional": 2,
+        "Empty": 1,
+        "ExpressionStatement": 38,
+        "ForLoop": 1,
+        "List": 8,
+        "Timed": 2
+      },
+      "symbols": {
+        "Instance": 2,
+        "InstanceBody": 2,
+        "Net": 7,
+        "Parameter": 1,
+        "Port": 7,
+        "ProceduralBlock": 2,
+        "Variable": 23
+      },
+      "system_calls": {
+        "$display": 3,
+        "$fdisplay": 2,
+        "$fgets": 1,
+        "$finish": 3,
+        "$fopen": 2,
+        "$fscanf": 1
+      },
+      "timing_controls": {
+        "Delay": 1,
+        "ImplicitEvent": 1
+      },
+      "top_instances": [
+        "tb2"
+      ]
+    },
+    "axis_fifo": {
+      "data_types": {
+        "FixedSizeUnpackedArrayType": 21,
+        "PackedArrayType": 903,
+        "PredefinedIntegerType": 215,
+        "ScalarType": 424,
+        "StringType": 4,
+        "VoidType": 26
+      },
+      "expressions": {
+        "Assignment": 168,
+        "BinaryOp": 140,
+        "Call": 36,
+        "Concatenation": 30,
+        "ConditionalOp": 21,
+        "Conversion": 254,
+        "ElementSelect": 30,
+        "EmptyArgument": 27,
+        "IntegerLiteral": 223,
+        "NamedValue": 565,
+        "RangeSelect": 27,
+        "Replication": 25,
+        "StringLiteral": 19,
+        "UnaryOp": 28
+      },
+      "statements": {
+        "Block": 54,
+        "Conditional": 40,
+        "Empty": 3,
+        "ExpressionStatement": 115,
+        "ForLoop": 2,
+        "List": 42,
+        "Timed": 9
+      },
+      "symbols": {
+        "ContinuousAssign": 48,
+        "GenerateBlock": 9,
+        "Instance": 2,
+        "InstanceBody": 2,
+        "Net": 57,
+        "Parameter": 48,
+        "Port": 25,
+        "ProceduralBlock": 8,
+        "StatementBlock": 1,
+        "Variable": 59
+      },
+      "system_calls": {
+        "$clog2": 4,
+        "$display": 4,
+        "$error": 7,
+        "$fclose": 2,
+        "$fdisplay": 2,
+        "$fgets": 1,
+        "$finish": 11,
+        "$fopen": 2,
+        "$fscanf": 2,
+        "$unsigned": 1
+      },
+      "timing_controls": {
+        "Delay": 2,
+        "SignalEvent": 7
+      },
+      "top_instances": [
+        "tb2"
+      ]
+    },
+    "basic01": {
+      "data_types": {
+        "PackedArrayType": 74,
+        "PredefinedIntegerType": 53,
+        "ScalarType": 32,
+        "StringType": 4,
+        "VoidType": 8
+      },
+      "expressions": {
+        "Assignment": 22,
+        "BinaryOp": 10,
+        "Call": 12,
+        "Concatenation": 5,
+        "ConditionalOp": 1,
+        "Conversion": 13,
+        "ElementSelect": 1,
+        "EmptyArgument": 7,
+        "IntegerLiteral": 23,
+        "NamedValue": 60,
+        "RangeSelect": 5,
+        "StringLiteral": 10,
+        "UnaryOp": 2
+      },
+      "statements": {
+        "Block": 4,
+        "Conditional": 2,
+        "Empty": 1,
+        "ExpressionStatement": 15,
+        "ForLoop": 1,
+        "List": 4,
+        "Timed": 1
+      },
+      "symbols": {
+        "ContinuousAssign": 6,
+        "Instance": 2,
+        "InstanceBody": 2,
+        "Net": 12,
+        "Parameter": 1,
+        "Port": 6,
+        "ProceduralBlock": 1,
+        "Variable": 15
+      },
+      "system_calls": {
+        "$display": 3,
+        "$fdisplay": 2,
+        "$fgets": 1,
+        "$finish": 3,
+        "$fopen": 2,
+        "$fscanf": 1
+      },
+      "timing_controls": {
+        "Delay": 1
+      },
+      "top_instances": [
+        "tb2"
+      ]
+    },
+    "basic02": {
+      "data_types": {
+        "PackedArrayType": 105,
+        "PredefinedIntegerType": 57,
+        "ScalarType": 19,
+        "StringType": 4,
+        "VoidType": 8
+      },
+      "expressions": {
+        "Assignment": 28,
+        "BinaryOp": 13,
+        "Call": 12,
+        "Concatenation": 6,
+        "ConditionalOp": 1,
+        "Conversion": 22,
+        "ElementSelect": 2,
+        "EmptyArgument": 7,
+        "IntegerLiteral": 23,
+        "NamedValue": 69,
+        "StringLiteral": 10
+      },
+      "statements": {
+        "Block": 10,
+        "Case": 1,
+        "Conditional": 3,
+        "Empty": 1,
+        "ExpressionStatement": 25,
+        "ForLoop": 2,
+        "List": 6,
+        "Timed": 2
+      },
+      "symbols": {
+        "Instance": 2,
+        "InstanceBody": 2,
+        "Net": 6,
+        "Parameter": 1,
+        "Port": 6,
+        "ProceduralBlock": 2,
+        "Variable": 20
+      },
+      "system_calls": {
+        "$display": 3,
+        "$fdisplay": 2,
+        "$fgets": 1,
+        "$finish": 3,
+        "$fopen": 2,
+        "$fscanf": 1
+      },
+      "timing_controls": {
+        "Delay": 1,
+        "ImplicitEvent": 1
+      },
+      "top_instances": [
+        "tb2"
+      ]
+    },
+    "basic03": {
+      "data_types": {
+        "PackedArrayType": 127,
+        "PredefinedIntegerType": 79,
+        "ScalarType": 177,
+        "StringType": 4,
+        "VoidType": 8
+      },
+      "expressions": {
+        "Assignment": 57,
+        "BinaryOp": 26,
+        "Call": 12,
+        "Concatenation": 2,
+        "ConditionalOp": 3,
+        "Conversion": 24,
+        "ElementSelect": 25,
+        "EmptyArgument": 17,
+        "IntegerLiteral": 23,
+        "NamedValue": 183,
+        "RangeSelect": 1,
+        "Replication": 1,
+        "StringLiteral": 10,
+        "UnaryOp": 11
+      },
+      "statements": {
+        "Block": 7,
+        "Conditional": 4,
+        "Empty": 2,
+        "ExpressionStatement": 25,
+        "ForLoop": 1,
+        "List": 4,
+        "Timed": 4
+      },
+      "symbols": {
+        "ContinuousAssign": 21,
+        "GenerateBlock": 26,
+        "GenerateBlockArray": 1,
+        "Genvar": 1,
+        "Instance": 10,
+        "InstanceBody": 10,
+        "Net": 37,
+        "Parameter": 18,
+        "Port": 33,
+        "ProceduralBlock": 3,
+        "Variable": 21
+      },
+      "system_calls": {
+        "$display": 3,
+        "$fdisplay": 2,
+        "$fgets": 1,
+        "$finish": 3,
+        "$fopen": 2,
+        "$fscanf": 1
+      },
+      "timing_controls": {
+        "Delay": 2,
+        "SignalEvent": 2
+      },
+      "top_instances": [
+        "tb2"
+      ]
+    },
+    "basic04": {
+      "data_types": {
+        "FixedSizeUnpackedArrayType": 4,
+        "PackedArrayType": 84,
+        "PredefinedIntegerType": 49,
+        "ScalarType": 16,
+        "StringType": 4,
+        "VoidType": 9
+      },
+      "expressions": {
+        "Assignment": 25,
+        "BinaryOp": 9,
+        "Call": 13,
+        "Concatenation": 2,
+        "Conversion": 17,
+        "ElementSelect": 1,
+        "EmptyArgument": 8,
+        "IntegerLiteral": 19,
+        "NamedValue": 59,
+        "RangeSelect": 2,
+        "StringLiteral": 11
+      },
+      "statements": {
+        "Block": 8,
+        "Conditional": 3,
+        "Empty": 2,
+        "ExpressionStatement": 21,
+        "ForLoop": 1,
+        "List": 4,
+        "Timed": 3
+      },
+      "symbols": {
+        "ContinuousAssign": 3,
+        "Instance": 4,
+        "InstanceBody": 4,
+        "Net": 11,
+        "Parameter": 5,
+        "Port": 8,
+        "ProceduralBlock": 3,
+        "Variable": 15
+      },
+      "system_calls": {
+        "$display": 3,
+        "$fdisplay": 2,
+        "$fgets": 1,
+        "$finish": 3,
+        "$fopen": 2,
+        "$fscanf": 1,
+        "$readmemh": 1
+      },
+      "timing_controls": {
+        "Delay": 2,
+        "ImplicitEvent": 1
+      },
+      "top_instances": [
+        "tb2"
+      ]
+    },
+    "basic05": {
+      "data_types": {
+        "FixedSizeUnpackedArrayType": 4,
+        "PackedArrayType": 169,
+        "PredefinedIntegerType": 64,
+        "ScalarType": 45,
+        "StringType": 4,
+        "VoidType": 9
+      },
+      "expressions": {
+        "Assignment": 47,
+        "BinaryOp": 14,
+        "Call": 13,
+        "Concatenation": 9,
+        "Conversion": 30,
+        "ElementSelect": 2,
+        "EmptyArgument": 12,
+        "IntegerLiteral": 38,
+        "NamedValue": 113,
+        "RangeSelect": 3,
+        "Replication": 1,
+        "StringLiteral": 11,
+        "UnaryOp": 2
+      },
+      "statements": {
+        "Block": 13,
+        "Case": 1,
+        "Conditional": 5,
+        "Empty": 3,
+        "ExpressionStatement": 35,
+        "ForLoop": 2,
+        "List": 5,
+        "Timed": 6
+      },
+      "symbols": {
+        "ContinuousAssign": 5,
+        "Instance": 4,
+        "InstanceBody": 4,
+        "Net": 18,
+        "Parameter": 7,
+        "Port": 13,
+        "ProceduralBlock": 5,
+        "Variable": 26
+      },
+      "system_calls": {
+        "$display": 3,
+        "$fdisplay": 2,
+        "$fgets": 1,
+        "$finish": 3,
+        "$fopen": 2,
+        "$fscanf": 1,
+        "$readmemh": 1
+      },
+      "timing_controls": {
+        "Delay": 3,
+        "ImplicitEvent": 1,
+        "SignalEvent": 2
+      },
+      "top_instances": [
+        "tb2"
+      ]
+    },
+    "i2c": {
+      "data_types": {
+        "PackedArrayType": 670,
+        "PredefinedIntegerType": 91,
+        "ScalarType": 884,
+        "StringType": 4,
+        "VoidType": 10
+      },
+      "expressions": {
+        "Assignment": 317,
+        "BinaryOp": 45,
+        "Call": 14,
+        "Concatenation": 1,
+        "Conversion": 255,
+        "ElementSelect": 15,
+        "EmptyArgument": 34,
+        "IntegerLiteral": 280,
+        "NamedValue": 646,
+        "RangeSelect": 8,
+        "StringLiteral": 10,
+        "UnaryOp": 34
+      },
+      "statements": {
+        "Block": 68,
+        "Case": 5,
+        "Conditional": 57,
+        "Empty": 7,
+        "ExpressionStatement": 279,
+        "List": 65,
+        "RepeatLoop": 2,
+        "Timed": 25,
+        "WhileLoop": 1
+      },
+      "symbols": {
+        "ContinuousAssign": 14,
+        "Instance": 4,
+        "InstanceBody": 4,
+        "Net": 73,
+        "Parameter": 25,
+        "Port": 56,
+        "ProceduralBlock": 20,
+        "Variable": 71
+      },
+      "system_calls": {
+        "$display": 3,
+        "$fclose": 2,
+        "$fdisplay": 2,
+        "$fgets": 1,
+        "$finish": 3,
+        "$fopen": 2,
+        "$fscanf": 1
+      },
+      "timing_controls": {
+        "Delay": 4,
+        "EventList": 14,
+        "SignalEvent": 35
+      },
+      "top_instances": [
+        "tb2"
+      ]
+    },
+    "ip": {
+      "data_types": {
+        "PackedArrayType": 1461,
+        "PredefinedIntegerType": 158,
+        "ScalarType": 1233,
+        "StringType": 4,
+        "VoidType": 8
+      },
+      "expressions": {
+        "Assignment": 609,
+        "BinaryOp": 50,
+        "Call": 22,
+        "Concatenation": 12,
+        "Conversion": 383,
+        "ElementSelect": 3,
+        "EmptyArgument": 116,
+        "IntegerLiteral": 421,
+        "NamedValue": 1178,
+        "RangeSelect": 38,
+        "StringLiteral": 10,
+        "UnaryOp": 22
+      },
+      "statements": {
+        "Block": 120,
+        "Case": 5,
+        "Conditional": 72,
+        "Empty": 2,
+        "ExpressionStatement": 451,
+        "ForLoop": 1,
+        "List": 87,
+        "Timed": 13,
+        "VariableDeclaration": 2
+      },
+      "symbols": {
+        "ContinuousAssign": 48,
+        "FormalArgument": 4,
+        "Instance": 4,
+        "InstanceBody": 4,
+        "Net": 198,
+        "Parameter": 14,
+        "Port": 150,
+        "ProceduralBlock": 12,
+        "Subroutine": 2,
+        "Variable": 262
+      },
+      "system_calls": {
+        "$display": 3,
+        "$fdisplay": 2,
+        "$fgets": 1,
+        "$finish": 3,
+        "$fopen": 2,
+        "$fscanf": 1
+      },
+      "timing_controls": {
+        "Delay": 2,
+        "ImplicitEvent": 5,
+        "SignalEvent": 6
+      },
+      "top_instances": [
+        "tb2"
+      ]
+    },
+    "priority_encoder": {
+      "data_types": {
+        "FixedSizeUnpackedArrayType": 200,
+        "PackedArrayType": 656,
+        "PredefinedIntegerType": 3223,
+        "ScalarType": 258,
+        "StringType": 4,
+        "VoidType": 11
+      },
+      "expressions": {
+        "Assignment": 113,
+        "BinaryOp": 936,
+        "Call": 15,
+        "Concatenation": 64,
+        "ConditionalOp": 31,
+        "Conversion": 793,
+        "ElementSelect": 325,
+        "EmptyArgument": 5,
+        "IntegerLiteral": 883,
+        "NamedValue": 1006,
+        "RangeSelect": 122,
+        "Replication": 1,
+        "StringLiteral": 10,
+        "UnaryOp": 48
+      },
+      "statements": {
+        "Block": 4,
+        "Conditional": 2,
+        "Empty": 3,
+        "ExpressionStatement": 20,
+        "ForLoop": 1,
+        "List": 4,
+        "Timed": 4
+      },
+      "symbols": {
+        "ContinuousAssign": 96,
+        "GenerateBlock": 97,
+        "GenerateBlockArray": 6,
+        "Genvar": 2,
+        "Instance": 2,
+        "InstanceBody": 2,
+        "Net": 10,
+        "Parameter": 44,
+        "Port": 4,
+        "ProceduralBlock": 2,
+        "Variable": 15
+      },
+      "system_calls": {
+        "$clog2": 1,
+        "$display": 3,
+        "$fclose": 2,
+        "$fdisplay": 2,
+        "$fgets": 1,
+        "$finish": 3,
+        "$fopen": 2,
+        "$fscanf": 1
+      },
+      "timing_controls": {
+        "Delay": 2,
+        "SignalEvent": 2
+      },
+      "top_instances": [
+        "tb2"
+      ]
+    },
+    "sha256": {
+      "data_types": {
+        "FixedSizeUnpackedArrayType": 56,
+        "PackedArrayType": 1441,
+        "PredefinedIntegerType": 359,
+        "ScalarType": 347,
+        "StringType": 4,
+        "VoidType": 10
+      },
+      "expressions": {
+        "Assignment": 382,
+        "BinaryOp": 64,
+        "Call": 14,
+        "Concatenation": 16,
+        "Conversion": 410,
+        "ElementSelect": 59,
+        "EmptyArgument": 13,
+        "IntegerLiteral": 458,
+        "NamedValue": 742,
+        "RangeSelect": 42,
+        "StringLiteral": 10,
+        "UnaryOp": 7
+      },
+      "statements": {
+        "Block": 54,
+        "Case": 3,
+        "Conditional": 36,
+        "Empty": 2,
+        "ExpressionStatement": 367,
+        "ForLoop": 2,
+        "List": 45,
+        "Timed": 16,
+        "VariableDeclaration": 12,
+        "WhileLoop": 1
+      },
+      "symbols": {
+        "ContinuousAssign": 8,
+        "Instance": 5,
+        "InstanceBody": 5,
+        "Net": 34,
+        "Parameter": 39,
+        "Port": 26,
+        "ProceduralBlock": 15,
+        "StatementBlock": 13,
+        "Variable": 123
+      },
+      "system_calls": {
+        "$display": 3,
+        "$fclose": 2,
+        "$fdisplay": 2,
+        "$fgets": 1,
+        "$finish": 3,
+        "$fopen": 2,
+        "$fscanf": 1
+      },
+      "timing_controls": {
+        "Delay": 2,
+        "EventList": 3,
+        "ImplicitEvent": 10,
+        "SignalEvent": 7
+      },
+      "top_instances": [
+        "tb2"
+      ]
+    }
+  },
+  "top": "tb2"
+}
