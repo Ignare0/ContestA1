@@ -31,6 +31,7 @@ parallel_run:
 	@exit 2
 
 test: build
+	$(CMAKE) --build "$(BUILD_DIR)" --target probe_report_test --parallel "$(BUILD_JOBS)"
 	ctest --test-dir "$(BUILD_DIR)" --output-on-failure
 
 clean:
