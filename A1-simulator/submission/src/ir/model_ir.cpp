@@ -212,6 +212,36 @@ std::vector<std::string> ModelIR::validate() const {
     }
 
     for (const auto& expression : expressions_) {
+        std::visit(
+            [&](const auto& payload) {
+                using Payload = std::decay_t<decltype(payload)>;
+                if constexpr (std::is_same_v<Payload, BitSelectExpr> ||
+                              std::is_same_v<Payload, RangeSelectExpr>) {
+                    if (!is_valid(payload.value, expressions_.size())) return;
+                    const auto& operand_type = expressions_[payload.value.value].type;
+                    const auto selected_width = [&] {
+                        if constexpr (std::is_same_v<Payload, BitSelectExpr>) {
+                            return std::uint32_t{1};
+                        } else {
+                            return payload.width;
+                        }
+                    }();
+                    if (!in_bounds(payload.bit_offset, selected_width, operand_type.width)) {
+                        diagnostics.emplace_back("expression select is out of range");
+                    }
+                    if (expression.type.width != selected_width) {
+                        diagnostics.emplace_back("expression type does not match select width");
+                    }
+                    if (expression.type.is_four_state != operand_type.is_four_state) {
+                        diagnostics.emplace_back(
+                            "expression four-state domain does not match selected value");
+                    }
+                }
+            },
+            expression.payload);
+    }
+
+    for (const auto& expression : expressions_) {
         if (const auto* ref = std::get_if<SignalRefExpr>(&expression.payload);
             ref != nullptr) {
             append_invalid_id_diagnostic(diagnostics, ref->signal, signals_.size(),
@@ -335,8 +365,11 @@ std::optional<std::vector<ContinuousAssignId>> ModelIR::continuous_order() const
 
 std::vector<SignalId> ModelIR::collect_reads(ExprId value) const {
     std::vector<SignalId> reads;
+    std::vector<bool> visited(expressions_.size(), false);
     const auto visit = [&](const auto& self, ExprId expression) -> void {
         if (!is_valid(expression, expressions_.size())) return;
+        if (visited[expression.value]) return;
+        visited[expression.value] = true;
         std::visit(
             [&](const auto& payload) {
                 using Payload = std::decay_t<decltype(payload)>;

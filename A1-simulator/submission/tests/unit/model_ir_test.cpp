@@ -183,5 +183,22 @@ int main() {
         A1_EXPECT(contains(diagnostics, "target/value width mismatch"));
     }
 
+    {
+        ModelIR model;
+        const auto a = model.add_signal("top.a", kLogic4, SignalKind::Variable, kSource);
+        const auto a_ref = model.add_signal_ref(a, kLogic4, kSource);
+        static_cast<void>(model.add_bit_select(a_ref, 4, PackedType{1, false, true}, kSource));
+        static_cast<void>(model.add_range_select(a_ref, 3, 2,
+                                                 PackedType{3, false, true}, kSource));
+        static_cast<void>(model.add_range_select(a_ref, 0, 2,
+                                                 PackedType{2, false, false}, kSource));
+
+        const auto diagnostics = model.validate();
+        A1_EXPECT(contains(diagnostics, "expression select is out of range"));
+        A1_EXPECT(contains(diagnostics, "expression type does not match select width"));
+        A1_EXPECT(contains(diagnostics,
+                           "expression four-state domain does not match selected value"));
+    }
+
     return EXIT_SUCCESS;
 }
