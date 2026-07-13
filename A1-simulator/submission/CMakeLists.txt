@@ -28,7 +28,13 @@ set(SLANG_USE_MIMALLOC OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(third_party/slang third_party/slang-build EXCLUDE_FROM_ALL)
 
+add_library(a1_probe_report STATIC src/frontend/probe_report.cpp)
+target_include_directories(a1_probe_report PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+
 add_executable(ir_probe src/frontend/probe_main.cpp)
-target_link_libraries(ir_probe PRIVATE slang::slang)
+target_link_libraries(ir_probe PRIVATE slang::slang a1_probe_report)
 
 enable_testing()
+add_executable(probe_report_test tests/unit/probe_report_test.cpp)
+target_link_libraries(probe_report_test PRIVATE a1_probe_report)
+add_test(NAME probe_report_test COMMAND probe_report_test)
