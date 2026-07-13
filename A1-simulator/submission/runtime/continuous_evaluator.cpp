@@ -79,12 +79,11 @@ void SignalStore::set_external_driver(ir::SignalId signal, LogicValue value) {
         throw std::invalid_argument("set_external_driver requires a net signal");
     }
 
-    auto driver = coerce_to_type(value, destination.type);
     auto& external = external_drivers_.at(signal.value);
-    if (is_all_z(driver)) {
+    if (is_all_z(value)) {
         external.reset();
     } else {
-        external = std::move(driver);
+        external = coerce_to_type(value, destination.type);
     }
 }
 

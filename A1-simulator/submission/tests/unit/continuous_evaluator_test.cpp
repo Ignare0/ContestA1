@@ -178,6 +178,23 @@ int main() {
 
     {
         ModelIR model;
+        const auto a = model.add_signal("top.a", kBit1, SignalKind::Variable, kSource);
+        const auto y = model.add_signal("top.y", kBit1, SignalKind::Net, kSource);
+        static_cast<void>(model.add_continuous_assign(
+            model.add_whole_signal_lvalue(y, kBit1, kSource),
+            model.add_signal_ref(a, kBit1, kSource), kSource));
+
+        SignalStore store(model);
+        store.set_variable(a, LogicValue::ones(1));
+        A1_EXPECT(settles(model, store));
+        A1_EXPECT(store.value(y).to_binary() == "1");
+        store.set_external_driver(y, LogicValue::z(1));
+        A1_EXPECT(settles(model, store));
+        A1_EXPECT(store.value(y).to_binary() == "1");
+    }
+
+    {
+        ModelIR model;
         const auto x = model.add_signal("top.x", kLogic1, SignalKind::Net, kSource);
         const auto y = model.add_signal("top.y", kLogic1, SignalKind::Net, kSource);
         static_cast<void>(model.add_continuous_assign(
