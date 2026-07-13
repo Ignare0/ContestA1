@@ -207,7 +207,7 @@ private:
     std::vector<Signal> signals_;
     std::vector<Expression> expressions_;
     std::vector<LValue> lvalues_;
-    std::vector<ContinuousAssign> continuous_assigns_;
+    mutable std::vector<ContinuousAssign> continuous_assigns_;
 };
 
 }  // namespace a1::ir

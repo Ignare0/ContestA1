@@ -300,6 +300,8 @@ std::optional<std::vector<ContinuousAssignId>> ModelIR::continuous_order() const
     std::vector<std::set<std::uint32_t>> outgoing(count);
     std::vector<std::uint32_t> indegree(count, 0);
     for (std::uint32_t consumer = 0; consumer < count; ++consumer) {
+        continuous_assigns_[consumer].read_signals =
+            collect_reads(continuous_assigns_[consumer].value);
         for (const auto signal : continuous_assigns_[consumer].read_signals) {
             for (const auto producer : producers[signal.value]) {
                 if (outgoing[producer].insert(consumer).second) {

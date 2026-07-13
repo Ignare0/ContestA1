@@ -9,6 +9,7 @@ namespace {
 
 using a1::ir::BinaryOp;
 using a1::ir::ContinuousAssignId;
+using a1::ir::ExprId;
 using a1::ir::ModelIR;
 using a1::ir::PackedType;
 using a1::ir::RangeSelectLValue;
@@ -104,6 +105,28 @@ int main() {
         A1_EXPECT(order.has_value());
         A1_EXPECT(order_index(*order, first_y) < order_index(*order, z_from_y));
         A1_EXPECT(order_index(*order, second_y) < order_index(*order, z_from_y));
+    }
+
+    {
+        ModelIR model;
+        const auto a = model.add_signal("top.a", kLogic2, SignalKind::Variable, kSource);
+        const auto y = model.add_signal("top.y", kLogic2, SignalKind::Net, kSource);
+        const auto z = model.add_signal("top.z", kLogic2, SignalKind::Net, kSource);
+
+        const auto z_assign = model.add_continuous_assign(
+            model.add_whole_signal_lvalue(z, kLogic2, kSource), ExprId{0}, kSource);
+        const auto y_ref = model.add_signal_ref(y, kLogic2, kSource);
+        const auto y_assign = model.add_continuous_assign(
+            model.add_whole_signal_lvalue(y, kLogic2, kSource),
+            model.add_signal_ref(a, kLogic2, kSource), kSource);
+
+        A1_EXPECT(model.validate().empty());
+        const auto order = model.continuous_order();
+        A1_EXPECT(order.has_value());
+        A1_EXPECT(order_index(*order, y_assign) < order_index(*order, z_assign));
+        A1_EXPECT(model.continuous_assigns().at(z_assign.value).read_signals ==
+                  std::vector<a1::ir::SignalId>({y}));
+        A1_EXPECT(y_ref.value == 0);
     }
 
     {
