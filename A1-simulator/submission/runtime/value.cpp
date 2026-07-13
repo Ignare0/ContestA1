@@ -495,6 +495,42 @@ void LogicValue::clear_unused_high_bits() {
     bval_.back() &= mask;
 }
 
+LogicValue resolve_net(std::span<const LogicValue> drivers) {
+    if (drivers.empty()) {
+        return LogicValue::z(1);
+    }
+
+    const auto width = drivers.front().width();
+    for (const auto& driver : drivers) {
+        if (driver.width() != width) {
+            throw std::invalid_argument("net drivers must have equal widths");
+        }
+    }
+
+    auto result = LogicValue::z(width);
+    for (std::uint32_t index = 0; index < width; ++index) {
+        bool saw_zero = false;
+        bool saw_one = false;
+        bool saw_x = false;
+        for (const auto& driver : drivers) {
+            switch (driver.bit(index)) {
+                case LogicValue::Bit::Zero: saw_zero = true; break;
+                case LogicValue::Bit::One: saw_one = true; break;
+                case LogicValue::Bit::X: saw_x = true; break;
+                case LogicValue::Bit::Z: break;
+            }
+        }
+
+        const auto resolved = saw_x || (saw_zero && saw_one)
+                                  ? LogicValue::Bit::X
+                                  : saw_one ? LogicValue::Bit::One
+                                             : saw_zero ? LogicValue::Bit::Zero
+                                                        : LogicValue::Bit::Z;
+        result.set_bit(index, resolved);
+    }
+    return result;
+}
+
 LogicValue operator~(const LogicValue& value) {
     auto result = LogicValue::zeros(value.width_).resize(value.width_, value.is_signed_);
     for (std::uint32_t index = 0; index < value.width_; ++index) {
