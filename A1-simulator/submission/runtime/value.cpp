@@ -471,15 +471,6 @@ bool LogicValue::exactly_equals(const LogicValue& other) const {
     return true;
 }
 
-bool LogicValue::is_z() const {
-    for (std::uint32_t index = 0; index < width_; ++index) {
-        if (bit(index) != Bit::Z) {
-            return false;
-        }
-    }
-    return true;
-}
-
 void LogicValue::set_bit(std::uint32_t index, Bit value) {
     if (index >= width_) {
         throw std::invalid_argument("logic value bit index is out of range");

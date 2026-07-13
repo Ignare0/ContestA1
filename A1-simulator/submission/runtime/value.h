@@ -47,7 +47,6 @@ public:
     [[nodiscard]] LogicValue shift_right(const LogicValue&, std::uint32_t, bool) const;
     [[nodiscard]] TruthValue truth_value() const;
     [[nodiscard]] bool exactly_equals(const LogicValue&) const;
-    [[nodiscard]] bool is_z() const;
 
     friend LogicValue operator~(const LogicValue&);
     friend LogicValue operator&(const LogicValue&, const LogicValue&);
