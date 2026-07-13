@@ -101,7 +101,8 @@ LogicValue LogicValue::from_binary(std::string_view text) {
             case 'X': result.set_bit(index, Bit::X); break;
             case 'z':
             case 'Z': result.set_bit(index, Bit::Z); break;
-            default: throw std::invalid_argument("binary logic value contains an invalid character");
+            default:
+                throw std::invalid_argument("binary logic value contains an invalid character");
         }
     }
     return result;
