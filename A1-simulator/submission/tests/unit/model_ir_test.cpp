@@ -200,5 +200,18 @@ int main() {
                            "expression four-state domain does not match selected value"));
     }
 
+    {
+        ModelIR model;
+        const auto y = model.add_signal("top.y", kLogic2, SignalKind::Net, kSource);
+        const auto assignment = model.add_continuous_assign(
+            model.add_whole_signal_lvalue(y, kLogic2, kSource), ExprId{0}, kSource);
+        static_cast<void>(model.add_unary(UnaryOp::BitwiseNot, ExprId{0}, kLogic2, kSource));
+
+        A1_EXPECT(model.validate().empty());
+        const auto order = model.continuous_order();
+        A1_EXPECT(order.has_value());
+        A1_EXPECT(order_index(*order, assignment) == 0);
+    }
+
     return EXIT_SUCCESS;
 }
