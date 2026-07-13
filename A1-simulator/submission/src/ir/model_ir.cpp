@@ -41,18 +41,21 @@ SignalId ModelIR::add_signal(std::string canonical_path, PackedType type, Signal
 ExprId ModelIR::add_constant(runtime::LogicValue value, PackedType type, SourceSpan source) {
     const auto id = ExprId{static_cast<std::uint32_t>(expressions_.size())};
     expressions_.push_back({ConstantExpr{std::move(value)}, type, std::move(source)});
+    refresh_read_sets();
     return id;
 }
 
 ExprId ModelIR::add_signal_ref(SignalId signal, PackedType type, SourceSpan source) {
     const auto id = ExprId{static_cast<std::uint32_t>(expressions_.size())};
     expressions_.push_back({SignalRefExpr{signal}, type, std::move(source)});
+    refresh_read_sets();
     return id;
 }
 
 ExprId ModelIR::add_unary(UnaryOp op, ExprId operand, PackedType type, SourceSpan source) {
     const auto id = ExprId{static_cast<std::uint32_t>(expressions_.size())};
     expressions_.push_back({UnaryExpr{op, operand}, type, std::move(source)});
+    refresh_read_sets();
     return id;
 }
 
@@ -60,6 +63,7 @@ ExprId ModelIR::add_binary(BinaryOp op, ExprId lhs, ExprId rhs, PackedType opera
                            PackedType type, SourceSpan source) {
     const auto id = ExprId{static_cast<std::uint32_t>(expressions_.size())};
     expressions_.push_back({BinaryExpr{op, lhs, rhs, operation_type}, type, std::move(source)});
+    refresh_read_sets();
     return id;
 }
 
@@ -68,12 +72,14 @@ ExprId ModelIR::add_conditional(ExprId condition, ExprId when_true, ExprId when_
     const auto id = ExprId{static_cast<std::uint32_t>(expressions_.size())};
     expressions_.push_back(
         {ConditionalExpr{condition, when_true, when_false}, type, std::move(source)});
+    refresh_read_sets();
     return id;
 }
 
 ExprId ModelIR::add_concat(std::vector<ExprId> operands, PackedType type, SourceSpan source) {
     const auto id = ExprId{static_cast<std::uint32_t>(expressions_.size())};
     expressions_.push_back({ConcatExpr{std::move(operands)}, type, std::move(source)});
+    refresh_read_sets();
     return id;
 }
 
@@ -81,6 +87,7 @@ ExprId ModelIR::add_replicate(ExprId operand, std::uint32_t count, PackedType ty
                               SourceSpan source) {
     const auto id = ExprId{static_cast<std::uint32_t>(expressions_.size())};
     expressions_.push_back({ReplicateExpr{operand, count}, type, std::move(source)});
+    refresh_read_sets();
     return id;
 }
 
@@ -88,6 +95,7 @@ ExprId ModelIR::add_bit_select(ExprId value, std::uint32_t bit_offset, PackedTyp
                                SourceSpan source) {
     const auto id = ExprId{static_cast<std::uint32_t>(expressions_.size())};
     expressions_.push_back({BitSelectExpr{value, bit_offset}, type, std::move(source)});
+    refresh_read_sets();
     return id;
 }
 
@@ -96,12 +104,14 @@ ExprId ModelIR::add_range_select(ExprId value, std::uint32_t bit_offset, std::ui
     const auto id = ExprId{static_cast<std::uint32_t>(expressions_.size())};
     expressions_.push_back({RangeSelectExpr{value, bit_offset, width}, type,
                             std::move(source)});
+    refresh_read_sets();
     return id;
 }
 
 ExprId ModelIR::add_cast(ExprId value, PackedType type, SourceSpan source) {
     const auto id = ExprId{static_cast<std::uint32_t>(expressions_.size())};
     expressions_.push_back({CastExpr{value}, type, std::move(source)});
+    refresh_read_sets();
     return id;
 }
 
@@ -212,6 +222,14 @@ std::vector<std::string> ModelIR::validate() const {
     }
 
     for (const auto& expression : expressions_) {
+        if (const auto* ref = std::get_if<SignalRefExpr>(&expression.payload);
+            ref != nullptr) {
+            append_invalid_id_diagnostic(diagnostics, ref->signal, signals_.size(),
+                                         "signal reference is out of range");
+        }
+    }
+
+    for (const auto& expression : expressions_) {
         std::visit(
             [&](const auto& payload) {
                 using Payload = std::decay_t<decltype(payload)>;
@@ -239,14 +257,6 @@ std::vector<std::string> ModelIR::validate() const {
                 }
             },
             expression.payload);
-    }
-
-    for (const auto& expression : expressions_) {
-        if (const auto* ref = std::get_if<SignalRefExpr>(&expression.payload);
-            ref != nullptr) {
-            append_invalid_id_diagnostic(diagnostics, ref->signal, signals_.size(),
-                                         "signal reference is out of range");
-        }
     }
 
     for (const auto& lvalue : lvalues_) {
@@ -320,6 +330,7 @@ std::optional<std::vector<ContinuousAssignId>> ModelIR::continuous_order() const
         return std::nullopt;
     }
 
+    refresh_read_sets();
     const auto count = continuous_assigns_.size();
     std::vector<std::vector<std::uint32_t>> producers(signals_.size());
     for (std::uint32_t index = 0; index < count; ++index) {
@@ -330,8 +341,6 @@ std::optional<std::vector<ContinuousAssignId>> ModelIR::continuous_order() const
     std::vector<std::set<std::uint32_t>> outgoing(count);
     std::vector<std::uint32_t> indegree(count, 0);
     for (std::uint32_t consumer = 0; consumer < count; ++consumer) {
-        continuous_assigns_[consumer].read_signals =
-            collect_reads(continuous_assigns_[consumer].value);
         for (const auto signal : continuous_assigns_[consumer].read_signals) {
             for (const auto producer : producers[signal.value]) {
                 if (outgoing[producer].insert(consumer).second) {
@@ -361,6 +370,12 @@ std::optional<std::vector<ContinuousAssignId>> ModelIR::continuous_order() const
         return std::nullopt;
     }
     return result;
+}
+
+void ModelIR::refresh_read_sets() const {
+    for (auto& assignment : continuous_assigns_) {
+        assignment.read_signals = collect_reads(assignment.value);
+    }
 }
 
 std::vector<SignalId> ModelIR::collect_reads(ExprId value) const {

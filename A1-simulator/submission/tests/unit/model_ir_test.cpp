@@ -121,6 +121,8 @@ int main() {
             model.add_signal_ref(a, kLogic2, kSource), kSource);
 
         A1_EXPECT(model.validate().empty());
+        A1_EXPECT(model.continuous_assigns().at(z_assign.value).read_signals ==
+                  std::vector<a1::ir::SignalId>({y}));
         const auto order = model.continuous_order();
         A1_EXPECT(order.has_value());
         A1_EXPECT(order_index(*order, y_assign) < order_index(*order, z_assign));

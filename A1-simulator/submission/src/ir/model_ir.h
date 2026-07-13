@@ -203,6 +203,7 @@ public:
 
 private:
     [[nodiscard]] std::vector<SignalId> collect_reads(ExprId value) const;
+    void refresh_read_sets() const;
 
     std::vector<Signal> signals_;
     std::vector<Expression> expressions_;
