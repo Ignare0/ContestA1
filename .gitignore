@@ -25,6 +25,7 @@ prefix/
 CMakeLists.txt.user
 CMakeUserPresets.json
 .ccls
+.worktrees/
 
 # Editor ignores.
 .vscode/
