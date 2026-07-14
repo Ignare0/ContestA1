@@ -31,7 +31,7 @@ parallel_run:
 	@exit 2
 
 test: build
-	$(CMAKE) --build "$(BUILD_DIR)" --target a1_phase1_tests --parallel "$(BUILD_JOBS)"
+	$(CMAKE) --build "$(BUILD_DIR)" --target a1_phase2_tests --parallel "$(BUILD_JOBS)"
 	ctest --test-dir "$(BUILD_DIR)" --output-on-failure
 
 clean:

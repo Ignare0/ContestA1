@@ -145,6 +145,64 @@ ContinuousAssignId ModelIR::add_continuous_assign(LValueId target, ExprId value,
     return id;
 }
 
+StmtId ModelIR::add_blocking_assign(LValueId target, ExprId value, SourceSpan source) {
+    const auto id = StmtId{static_cast<std::uint32_t>(statements_.size())};
+    statements_.push_back({BlockingAssignStmt{target, value}, std::move(source)});
+    return id;
+}
+
+StmtId ModelIR::add_nonblocking_assign(LValueId target, ExprId value, SourceSpan source) {
+    const auto id = StmtId{static_cast<std::uint32_t>(statements_.size())};
+    statements_.push_back({NonBlockingAssignStmt{target, value}, std::move(source)});
+    return id;
+}
+
+StmtId ModelIR::add_seq_block(std::vector<StmtId> statements, SourceSpan source) {
+    const auto id = StmtId{static_cast<std::uint32_t>(statements_.size())};
+    statements_.push_back({SeqBlockStmt{std::move(statements)}, std::move(source)});
+    return id;
+}
+
+StmtId ModelIR::add_delay(std::uint64_t ticks, StmtId next, SourceSpan source) {
+    const auto id = StmtId{static_cast<std::uint32_t>(statements_.size())};
+    statements_.push_back({DelayStmt{ticks, next}, std::move(source)});
+    return id;
+}
+
+StmtId ModelIR::add_if(ExprId condition, StmtId then_stmt, std::optional<StmtId> else_stmt,
+                       SourceSpan source) {
+    const auto id = StmtId{static_cast<std::uint32_t>(statements_.size())};
+    statements_.push_back({IfStmt{condition, then_stmt, else_stmt}, std::move(source)});
+    return id;
+}
+
+StmtId ModelIR::add_finish(SourceSpan source) {
+    const auto id = StmtId{static_cast<std::uint32_t>(statements_.size())};
+    statements_.push_back({FinishStmt{}, std::move(source)});
+    return id;
+}
+
+StmtId ModelIR::add_display_stub(SourceSpan source) {
+    const auto id = StmtId{static_cast<std::uint32_t>(statements_.size())};
+    statements_.push_back({DisplayStubStmt{}, std::move(source)});
+    return id;
+}
+
+StmtId ModelIR::add_empty(SourceSpan source) {
+    const auto id = StmtId{static_cast<std::uint32_t>(statements_.size())};
+    statements_.push_back({EmptyStmt{}, std::move(source)});
+    return id;
+}
+
+ProcessId ModelIR::add_process(ProcessKind kind, std::vector<TimingSense> sensitivity,
+                               std::vector<SignalId> read_signals, StmtId body,
+                               SourceSpan source) {
+    const auto id = ProcessId{static_cast<std::uint32_t>(processes_.size())};
+    processes_.push_back({kind, std::move(sensitivity), std::move(read_signals), body,
+                          std::move(source)});
+    return id;
+}
+
 const std::vector<Signal>& ModelIR::signals() const {
     return signals_;
 }
@@ -159,6 +217,14 @@ const std::vector<LValue>& ModelIR::lvalues() const {
 
 const std::vector<ContinuousAssign>& ModelIR::continuous_assigns() const {
     return continuous_assigns_;
+}
+
+const std::vector<Statement>& ModelIR::statements() const {
+    return statements_;
+}
+
+const std::vector<Process>& ModelIR::processes() const {
+    return processes_;
 }
 
 std::vector<std::string> ModelIR::validate() const {
@@ -306,10 +372,16 @@ std::vector<std::string> ModelIR::validate() const {
                                      "assignment value is out of range");
     }
 
-    for (const auto& lvalue : lvalues_) {
-        const auto base = lvalue_base(lvalue);
-        if (is_valid(base, signals_.size()) && signals_[base.value].kind != SignalKind::Net) {
-            diagnostics.emplace_back("lvalue base is not a net");
+    for (const auto& assignment : continuous_assigns_) {
+        if (!is_valid(assignment.target, lvalues_.size())) continue;
+        const auto base = lvalue_base(lvalues_[assignment.target.value]);
+        if (is_valid(base, signals_.size())) {
+            const auto& signal = signals_[base.value];
+            if (signal.kind == SignalKind::Variable && signal.type.is_four_state) {
+                diagnostics.emplace_back("lvalue base is not a net");
+            } else if (signal.kind != SignalKind::Net && signal.kind != SignalKind::Variable) {
+                diagnostics.emplace_back("lvalue base is not a net");
+            }
         }
     }
 
@@ -319,6 +391,58 @@ std::vector<std::string> ModelIR::validate() const {
             lvalues_[assignment.target.value].type.width !=
                 expressions_[assignment.value.value].type.width) {
             diagnostics.emplace_back("target/value width mismatch");
+        }
+    }
+
+    const auto check_stmt = [&](StmtId stmt) {
+        append_invalid_id_diagnostic(diagnostics, stmt, statements_.size(),
+                                     "statement reference is out of range");
+    };
+    for (const auto& statement : statements_) {
+        std::visit(
+            [&](const auto& payload) {
+                using Payload = std::decay_t<decltype(payload)>;
+                if constexpr (std::is_same_v<Payload, BlockingAssignStmt> ||
+                              std::is_same_v<Payload, NonBlockingAssignStmt>) {
+                    append_invalid_id_diagnostic(diagnostics, payload.target, lvalues_.size(),
+                                                 "assignment target is out of range");
+                    append_invalid_id_diagnostic(diagnostics, payload.value, expressions_.size(),
+                                                 "assignment value is out of range");
+                    if (is_valid(payload.target, lvalues_.size())) {
+                        const auto base = lvalue_base(lvalues_[payload.target.value]);
+                        if (is_valid(base, signals_.size()) &&
+                            signals_[base.value].kind != SignalKind::Variable) {
+                            diagnostics.emplace_back(
+                                "process assignment target must be a variable");
+                        }
+                    }
+                } else if constexpr (std::is_same_v<Payload, SeqBlockStmt>) {
+                    for (const auto child : payload.statements) check_stmt(child);
+                } else if constexpr (std::is_same_v<Payload, DelayStmt>) {
+                    check_stmt(payload.next);
+                } else if constexpr (std::is_same_v<Payload, IfStmt>) {
+                    append_invalid_id_diagnostic(diagnostics, payload.condition,
+                                                 expressions_.size(),
+                                                 "expression child is out of range");
+                    check_stmt(payload.then_stmt);
+                    if (payload.else_stmt.has_value()) check_stmt(*payload.else_stmt);
+                }
+            },
+            statement.payload);
+    }
+
+    for (const auto& process : processes_) {
+        check_stmt(process.body);
+        if (process.kind == ProcessKind::Initial && !process.sensitivity.empty()) {
+            diagnostics.emplace_back("initial process must have empty sensitivity");
+        }
+        for (const auto& sense : process.sensitivity) {
+            append_invalid_id_diagnostic(diagnostics, sense.signal, signals_.size(),
+                                         "timing sense signal is out of range");
+        }
+        for (const auto& signal : process.read_signals) {
+            append_invalid_id_diagnostic(diagnostics, signal, signals_.size(),
+                                         "read signal is out of range");
         }
     }
 
