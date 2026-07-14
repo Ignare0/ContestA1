@@ -121,6 +121,10 @@ std::optional<std::string> ContinuousEvaluator::settle(const ir::ModelIR& model,
         store.values_.at(signal.value) = coerce_to_type(resolved, base.type);
     };
 
+    for (std::uint32_t signal = 0; signal < model.signals().size(); ++signal) {
+        if (model.signals()[signal].kind == ir::SignalKind::Net)
+            resolve_target({signal});
+    }
     for (const auto assignment_id : *order) {
         const auto& assignment = model.continuous_assigns().at(assignment_id.value);
         const auto& target = model.lvalues().at(assignment.target.value);

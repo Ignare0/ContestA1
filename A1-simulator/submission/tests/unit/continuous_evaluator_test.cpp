@@ -97,6 +97,20 @@ int main() {
 
     {
         ModelIR model;
+        const auto input = model.add_signal("top.input", kLogic1, SignalKind::Net, kSource);
+        const auto output = model.add_signal("top.output", kLogic1, SignalKind::Net, kSource);
+        static_cast<void>(model.add_continuous_assign(
+            model.add_whole_signal_lvalue(output, kLogic1, kSource),
+            model.add_signal_ref(input, kLogic1, kSource), kSource));
+
+        SignalStore store(model);
+        store.set_external_driver(input, LogicValue::ones(1));
+        A1_EXPECT(settles(model, store));
+        A1_EXPECT(store.value(output).to_binary() == "1");
+    }
+
+    {
+        ModelIR model;
         const auto high = model.add_signal("top.high", kLogic2, SignalKind::Variable, kSource);
         const auto low = model.add_signal("top.low", kLogic2, SignalKind::Variable, kSource);
         const auto two_state =
