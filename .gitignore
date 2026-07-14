@@ -38,10 +38,7 @@ CMakeUserPresets.json
 *.code-workspace
 .claude
 
-/A1-simulator/*.md
-
 */testcases/*
 
-# Superpowers local artifacts
-*/superpowers/*
+# Superpowers: keep docs/superpowers (plans/specs) tracked; ignore local SDD artifacts only.
 .superpowers/
