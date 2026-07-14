@@ -52,6 +52,18 @@ target_include_directories(a1_continuous_evaluator PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_link_libraries(a1_continuous_evaluator PUBLIC a1_ir)
 
+add_library(a1_edge STATIC runtime/edge.cpp)
+target_include_directories(a1_edge PUBLIC
+  "${CMAKE_CURRENT_SOURCE_DIR}"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(a1_edge PUBLIC a1_value)
+
+add_library(a1_scheduler STATIC runtime/scheduler.cpp)
+target_include_directories(a1_scheduler PUBLIC
+  "${CMAKE_CURRENT_SOURCE_DIR}"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(a1_scheduler PUBLIC a1_continuous_evaluator a1_edge)
+
 target_link_libraries(a1_frontend PUBLIC a1_ir slang::slang)
 
 add_executable(ir_probe src/frontend/probe_main.cpp)
@@ -87,9 +99,27 @@ target_include_directories(frontend_lowering_test PRIVATE "${CMAKE_CURRENT_SOURC
 target_link_libraries(frontend_lowering_test PRIVATE a1_frontend a1_continuous_evaluator)
 add_test(NAME frontend_lowering_test COMMAND frontend_lowering_test)
 
+add_executable(edge_test tests/unit/edge_test.cpp)
+target_include_directories(edge_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(edge_test PRIVATE a1_edge)
+add_test(NAME edge_test COMMAND edge_test)
+
+add_executable(scheduler_test tests/unit/scheduler_test.cpp)
+target_include_directories(scheduler_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(scheduler_test PRIVATE a1_scheduler)
+add_test(NAME scheduler_test COMMAND scheduler_test)
+
+add_executable(flat_core_slice_test tests/integration/flat_core_slice_test.cpp)
+target_include_directories(flat_core_slice_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_link_libraries(flat_core_slice_test PRIVATE a1_frontend a1_scheduler)
+add_test(NAME flat_core_slice_test COMMAND flat_core_slice_test)
+
 add_custom_target(a1_phase1_tests
   DEPENDS probe_report_test value_test net_resolution_test model_ir_test
           continuous_evaluator_test frontend_lowering_test)
+
+add_custom_target(a1_phase2_tests
+  DEPENDS a1_phase1_tests edge_test scheduler_test flat_core_slice_test)
 
 find_package(Python 3.10 REQUIRED COMPONENTS Interpreter)
 add_test(
