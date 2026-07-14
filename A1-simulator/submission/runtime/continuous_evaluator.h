@@ -2,6 +2,8 @@
 
 #include "ir/model_ir.h"
 
+#include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -34,10 +36,26 @@ public:
     [[nodiscard]] static std::optional<std::string> settle(const ir::ModelIR& model,
                                                             SignalStore& store);
 
+    [[nodiscard]] static bool propagate_once(const ir::ModelIR& model, SignalStore& store);
+
+    [[nodiscard]] static std::optional<std::string>
+    settle_with_limit(const ir::ModelIR& model, SignalStore& store, std::uint64_t delta_limit);
+
 private:
     [[nodiscard]] static LogicValue evaluate(const ir::ModelIR& model,
                                              const SignalStore& store,
                                              ir::ExprId expression);
+
+    using ResolveTargetFn = std::function<void(ir::SignalId)>;
+
+    static ResolveTargetFn make_resolve_target(const ir::ModelIR& model, SignalStore& store);
+    static void apply_continuous_assign(const ir::ModelIR& model, SignalStore& store,
+                                        ir::ContinuousAssignId assignment_id,
+                                        const ResolveTargetFn& resolve_target);
+    static void resolve_all_nets(const ir::ModelIR& model,
+                                 const ResolveTargetFn& resolve_target);
+    static bool signals_unchanged(const SignalStore& store,
+                                  const std::vector<LogicValue>& before);
 };
 
 }  // namespace a1::runtime

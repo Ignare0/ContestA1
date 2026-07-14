@@ -1,5 +1,6 @@
 #include "runtime/continuous_evaluator.h"
 
+#include <functional>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -91,19 +92,9 @@ const LogicValue& SignalStore::value(ir::SignalId signal) const {
     return values_.at(signal.value);
 }
 
-std::optional<std::string> ContinuousEvaluator::settle(const ir::ModelIR& model,
-                                                        SignalStore& store) {
-    const auto diagnostics = model.validate();
-    if (!diagnostics.empty()) {
-        return "invalid model: " + diagnostics.front();
-    }
-
-    const auto order = model.continuous_order();
-    if (!order.has_value()) {
-        return "cyclic continuous assignments unsupported by phase-1 evaluator";
-    }
-
-    const auto resolve_target = [&](ir::SignalId signal) {
+ContinuousEvaluator::ResolveTargetFn ContinuousEvaluator::make_resolve_target(
+    const ir::ModelIR& model, SignalStore& store) {
+    return [&](ir::SignalId signal) {
         const auto& base = model.signals().at(signal.value);
         std::vector<LogicValue> drivers;
         for (const auto& slot : store.assignment_drivers_) {
@@ -120,24 +111,92 @@ std::optional<std::string> ContinuousEvaluator::settle(const ir::ModelIR& model,
                                               : resolve_net(drivers);
         store.values_.at(signal.value) = coerce_to_type(resolved, base.type);
     };
+}
 
-    for (std::uint32_t signal = 0; signal < model.signals().size(); ++signal) {
-        if (model.signals()[signal].kind == ir::SignalKind::Net)
-            resolve_target({signal});
-    }
-    for (const auto assignment_id : *order) {
-        const auto& assignment = model.continuous_assigns().at(assignment_id.value);
-        const auto& target = model.lvalues().at(assignment.target.value);
-        store.assignment_drivers_.at(assignment_id.value).payload =
-            coerce_to_type(evaluate(model, store, assignment.value), target.type);
-        resolve_target(lvalue_base(target));
-    }
+void ContinuousEvaluator::apply_continuous_assign(const ir::ModelIR& model,
+                                                   SignalStore& store,
+                                                   ir::ContinuousAssignId assignment_id,
+                                                   const ResolveTargetFn& resolve_target) {
+    const auto& assignment = model.continuous_assigns().at(assignment_id.value);
+    const auto& target = model.lvalues().at(assignment.target.value);
+    store.assignment_drivers_.at(assignment_id.value).payload =
+        coerce_to_type(evaluate(model, store, assignment.value), target.type);
+    resolve_target(lvalue_base(target));
+}
+
+void ContinuousEvaluator::resolve_all_nets(const ir::ModelIR& model,
+                                            const ResolveTargetFn& resolve_target) {
     for (std::uint32_t signal = 0; signal < model.signals().size(); ++signal) {
         if (model.signals()[signal].kind == ir::SignalKind::Net) {
             resolve_target({signal});
         }
     }
+}
+
+bool ContinuousEvaluator::signals_unchanged(const SignalStore& store,
+                                             const std::vector<LogicValue>& before) {
+    for (std::uint32_t signal = 0; signal < store.values_.size(); ++signal) {
+        if (!store.values_[signal].exactly_equals(before[signal])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::optional<std::string> ContinuousEvaluator::settle(const ir::ModelIR& model,
+                                                        SignalStore& store) {
+    const auto diagnostics = model.validate();
+    if (!diagnostics.empty()) {
+        return "invalid model: " + diagnostics.front();
+    }
+
+    const auto order = model.continuous_order();
+    if (!order.has_value()) {
+        return "cyclic continuous assignments unsupported by phase-1 evaluator";
+    }
+
+    const auto resolve_target = make_resolve_target(model, store);
+    resolve_all_nets(model, resolve_target);
+    for (const auto assignment_id : *order) {
+        apply_continuous_assign(model, store, assignment_id, resolve_target);
+    }
+    resolve_all_nets(model, resolve_target);
     return std::nullopt;
+}
+
+bool ContinuousEvaluator::propagate_once(const ir::ModelIR& model, SignalStore& store) {
+    const auto before = store.values_;
+    const auto resolve_target = make_resolve_target(model, store);
+    for (std::uint32_t assign_index = 0; assign_index < model.continuous_assigns().size();
+         ++assign_index) {
+        apply_continuous_assign(model, store, ir::ContinuousAssignId{assign_index},
+                                resolve_target);
+    }
+    return !signals_unchanged(store, before);
+}
+
+std::optional<std::string> ContinuousEvaluator::settle_with_limit(const ir::ModelIR& model,
+                                                                   SignalStore& store,
+                                                                   std::uint64_t delta_limit) {
+    const auto diagnostics = model.validate();
+    if (!diagnostics.empty()) {
+        return "invalid model: " + diagnostics.front();
+    }
+
+    if (model.continuous_order().has_value()) {
+        return settle(model, store);
+    }
+
+    std::uint64_t iterations = 0;
+    while (true) {
+        if (!propagate_once(model, store)) {
+            return std::nullopt;
+        }
+        ++iterations;
+        if (iterations > delta_limit) {
+            return "delta cycle limit exceeded";
+        }
+    }
 }
 
 LogicValue ContinuousEvaluator::evaluate(const ir::ModelIR& model, const SignalStore& store,

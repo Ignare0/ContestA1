@@ -12,6 +12,7 @@ using a1::ir::ModelIR;
 using a1::ir::PackedType;
 using a1::ir::SignalKind;
 using a1::ir::SourceSpan;
+using a1::ir::UnaryOp;
 using a1::runtime::ContinuousEvaluator;
 using a1::runtime::LogicValue;
 using a1::runtime::SignalStore;
@@ -28,6 +29,16 @@ const SourceSpan kSource{"continuous_evaluator_test.sv", 1, 1};
 bool settles(const ModelIR& model, SignalStore& store) {
     const std::optional<std::string> error = ContinuousEvaluator::settle(model, store);
     return !error.has_value();
+}
+
+bool settle_values_match(const ModelIR& model, SignalStore& settled,
+                         SignalStore& limited) {
+    for (std::uint32_t signal = 0; signal < model.signals().size(); ++signal) {
+        if (settled.value({signal}).to_binary() != limited.value({signal}).to_binary()) {
+            return false;
+        }
+    }
+    return true;
 }
 
 }  // namespace
@@ -277,6 +288,74 @@ int main() {
         A1_EXPECT(store.value(unsigned_result).to_binary() == "1");
         A1_EXPECT(store.value(arithmetic_shift).to_binary() == "1100");
         A1_EXPECT(store.value(truncated_shift).to_binary() == "00");
+    }
+
+    {
+        ModelIR model;
+        const auto a = model.add_signal("top.a", kLogic8, SignalKind::Variable, kSource);
+        const auto b = model.add_signal("top.b", kLogic8, SignalKind::Variable, kSource);
+        const auto sum = model.add_signal("top.sum", kLogic8, SignalKind::Net, kSource);
+        const auto y = model.add_signal("top.y", kLogic8, SignalKind::Net, kSource);
+        const auto add = model.add_binary(
+            BinaryOp::Add, model.add_signal_ref(a, kLogic8, kSource),
+            model.add_signal_ref(b, kLogic8, kSource), kLogic8, kLogic8, kSource);
+        static_cast<void>(model.add_continuous_assign(
+            model.add_whole_signal_lvalue(sum, kLogic8, kSource), add, kSource));
+        static_cast<void>(model.add_continuous_assign(
+            model.add_whole_signal_lvalue(y, kLogic8, kSource),
+            model.add_signal_ref(sum, kLogic8, kSource), kSource));
+
+        SignalStore settled(model);
+        settled.set_variable(a, LogicValue::from_binary("11111111"));
+        settled.set_variable(b, LogicValue::from_binary("00000001"));
+        A1_EXPECT(settles(model, settled));
+
+        SignalStore limited(model);
+        limited.set_variable(a, LogicValue::from_binary("11111111"));
+        limited.set_variable(b, LogicValue::from_binary("00000001"));
+        const auto error = ContinuousEvaluator::settle_with_limit(model, limited, 10);
+        A1_EXPECT(!error.has_value());
+        A1_EXPECT(settle_values_match(model, settled, limited));
+    }
+
+    {
+        ModelIR model;
+        const auto x = model.add_signal("top.x", kLogic1, SignalKind::Net, kSource);
+        const auto y = model.add_signal("top.y", kLogic1, SignalKind::Net, kSource);
+        static_cast<void>(model.add_continuous_assign(
+            model.add_whole_signal_lvalue(x, kLogic1, kSource),
+            model.add_signal_ref(y, kLogic1, kSource), kSource));
+        static_cast<void>(model.add_continuous_assign(
+            model.add_whole_signal_lvalue(y, kLogic1, kSource),
+            model.add_signal_ref(x, kLogic1, kSource), kSource));
+
+        SignalStore store(model);
+        store.set_external_driver(x, LogicValue::ones(1));
+        const auto exceed = ContinuousEvaluator::settle_with_limit(model, store, 0);
+        A1_EXPECT(exceed.has_value());
+        A1_EXPECT(*exceed == "delta cycle limit exceeded");
+
+        SignalStore converged(model);
+        converged.set_external_driver(x, LogicValue::ones(1));
+        const auto settled = ContinuousEvaluator::settle_with_limit(model, converged, 2);
+        A1_EXPECT(!settled.has_value());
+        A1_EXPECT(converged.value(x).to_binary() == converged.value(y).to_binary());
+        A1_EXPECT(converged.value(x).to_binary() == "1");
+    }
+
+    {
+        ModelIR model;
+        const auto a = model.add_signal("top.a", kBit1, SignalKind::Net, kSource);
+        static_cast<void>(model.add_continuous_assign(
+            model.add_whole_signal_lvalue(a, kBit1, kSource),
+            model.add_unary(UnaryOp::BitwiseNot, model.add_signal_ref(a, kBit1, kSource),
+                            kBit1, kSource),
+            kSource));
+
+        SignalStore store(model);
+        const auto error = ContinuousEvaluator::settle_with_limit(model, store, 1);
+        A1_EXPECT(error.has_value());
+        A1_EXPECT(*error == "delta cycle limit exceeded");
     }
 
     return EXIT_SUCCESS;
