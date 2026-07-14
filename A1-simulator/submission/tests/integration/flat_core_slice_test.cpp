@@ -240,19 +240,22 @@ int main() {
     }
 
     {
-        // 不收敛环：assign a = ~a 触发 delta cycle limit。
+        // 不收敛环：2-state bit + assign a = ~a 触发 delta cycle limit。
         const auto spec = fixture(
             "flat-core-slice-osc",
-            "module osc;\n"
-            "  wire a;\n"
+            "module ring_slice;\n"
+            "  bit a;\n"
             "  assign a = ~a;\n"
-            "  initial #1 $finish;\n"
+            "  initial begin\n"
+            "    #1;\n"
+            "    $finish;\n"
+            "  end\n"
             "endmodule\n",
-            "osc");
+            "ring_slice");
         const auto compiled = a1::frontend::compile_to_ir(spec);
         A1_EXPECT(compiled.diagnostics.empty());
         A1_EXPECT(compiled.model.has_value());
-        const auto a_sig = find_signal(*compiled.model, "osc.a");
+        const auto a_sig = find_signal(*compiled.model, "ring_slice.a");
         A1_EXPECT(a_sig.has_value());
         A1_EXPECT(!compiled.model->signals()[a_sig->value].type.is_four_state);
         SimOptions options;

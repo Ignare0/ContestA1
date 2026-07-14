@@ -300,14 +300,25 @@ struct LoweringContext {
             return std::nullopt;
 
         if (const auto* named = expression.as_if<NamedValueExpression>()) {
-            const auto expected = procedural ? SymbolKind::Variable : SymbolKind::Net;
             const auto id = signal_id(named->symbol);
-            if (!id || named->symbol.kind != expected) {
+            if (!id) {
                 fail_lvalue(procedural, expression.sourceRange);
                 return std::nullopt;
             }
-            return model.add_whole_signal_lvalue(*id, model.signals()[id->value].type,
-                                                   source(expression.sourceRange));
+            const auto kind = named->symbol.kind;
+            if (procedural) {
+                if (kind != SymbolKind::Variable) {
+                    fail_lvalue(true, expression.sourceRange);
+                    return std::nullopt;
+                }
+            } else if (kind == SymbolKind::Net) {
+            } else if (kind == SymbolKind::Variable &&
+                       !model.signals()[id->value].type.is_four_state) {
+            } else {
+                fail_lvalue(false, expression.sourceRange);
+                return std::nullopt;
+            }
+            return model.add_whole_signal_lvalue(*id, *target_type, source(expression.sourceRange));
         }
 
         if (const auto* select = expression.as_if<ElementSelectExpression>()) {
@@ -582,16 +593,6 @@ struct LoweringContext {
             assignment->isNonBlocking()) {
             fail("unsupported continuous assignment", expression.sourceRange);
             return false;
-        }
-        const auto* target_named = assignment->left().as_if<NamedValueExpression>();
-        const auto* invert = assignment->right().as_if<UnaryExpression>();
-        if (target_named != nullptr && target_named->symbol.kind == SymbolKind::Net &&
-            invert != nullptr && invert->op == UnaryOperator::BitwiseNot) {
-            if (const auto* source_named = invert->operand().as_if<NamedValueExpression>();
-                source_named != nullptr && &source_named->symbol == &target_named->symbol) {
-                if (const auto target_id = signal_id(target_named->symbol))
-                    model.mark_self_loop_net_two_state(*target_id);
-            }
         }
         const auto target = lower_lvalue(assignment->left());
         const auto value = lower_expression(assignment->right());

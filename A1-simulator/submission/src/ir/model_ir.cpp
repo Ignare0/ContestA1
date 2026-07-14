@@ -375,8 +375,13 @@ std::vector<std::string> ModelIR::validate() const {
     for (const auto& assignment : continuous_assigns_) {
         if (!is_valid(assignment.target, lvalues_.size())) continue;
         const auto base = lvalue_base(lvalues_[assignment.target.value]);
-        if (is_valid(base, signals_.size()) && signals_[base.value].kind != SignalKind::Net) {
-            diagnostics.emplace_back("lvalue base is not a net");
+        if (is_valid(base, signals_.size())) {
+            const auto& signal = signals_[base.value];
+            if (signal.kind == SignalKind::Variable && signal.type.is_four_state) {
+                diagnostics.emplace_back("lvalue base is not a net");
+            } else if (signal.kind != SignalKind::Net && signal.kind != SignalKind::Variable) {
+                diagnostics.emplace_back("lvalue base is not a net");
+            }
         }
     }
 
@@ -537,12 +542,6 @@ std::vector<SignalId> ModelIR::collect_reads(ExprId value) const {
     });
     reads.erase(std::unique(reads.begin(), reads.end()), reads.end());
     return reads;
-}
-
-void ModelIR::mark_self_loop_net_two_state(SignalId signal) {
-    auto& entry = signals_.at(signal.value);
-    if (entry.kind == SignalKind::Net && entry.type.width == 1)
-        entry.type.is_four_state = false;
 }
 
 }  // namespace a1::ir
