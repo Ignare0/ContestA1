@@ -31,10 +31,74 @@ struct ContinuousAssignId {
     auto operator<=>(const ContinuousAssignId&) const = default;
 };
 
+struct StmtId {
+    std::uint32_t value;
+    auto operator<=>(const StmtId&) const = default;
+};
+
+struct ProcessId {
+    std::uint32_t value;
+    auto operator<=>(const ProcessId&) const = default;
+};
+
+enum class EdgeSense { AnyChange, Posedge, Negedge };
+enum class ProcessKind { Initial, Always };
+
+struct TimingSense {
+    EdgeSense edge;
+    SignalId signal;
+};
+
+struct BlockingAssignStmt {
+    LValueId target;
+    ExprId value;
+};
+
+struct NonBlockingAssignStmt {
+    LValueId target;
+    ExprId value;
+};
+
+struct SeqBlockStmt {
+    std::vector<StmtId> statements;
+};
+
+struct DelayStmt {
+    std::uint64_t ticks;
+    StmtId next;
+};
+
+struct IfStmt {
+    ExprId condition;
+    StmtId then_stmt;
+    std::optional<StmtId> else_stmt;
+};
+
+struct FinishStmt {};
+
+struct DisplayStubStmt {};
+
+struct EmptyStmt {};
+
 struct SourceSpan {
     std::string file;
     std::uint32_t line = 0;
     std::uint32_t column = 0;
+};
+
+struct Statement {
+    std::variant<BlockingAssignStmt, NonBlockingAssignStmt, SeqBlockStmt, DelayStmt, IfStmt,
+                 FinishStmt, DisplayStubStmt, EmptyStmt>
+        payload;
+    SourceSpan source;
+};
+
+struct Process {
+    ProcessKind kind;
+    std::vector<TimingSense> sensitivity;
+    std::vector<SignalId> read_signals;
+    StmtId body;
+    SourceSpan source;
 };
 
 struct PackedType {
@@ -193,10 +257,26 @@ public:
     [[nodiscard]] ContinuousAssignId add_continuous_assign(LValueId target, ExprId value,
                                                             SourceSpan source);
 
+    [[nodiscard]] StmtId add_blocking_assign(LValueId target, ExprId value, SourceSpan source);
+    [[nodiscard]] StmtId add_nonblocking_assign(LValueId target, ExprId value,
+                                                SourceSpan source);
+    [[nodiscard]] StmtId add_seq_block(std::vector<StmtId> statements, SourceSpan source);
+    [[nodiscard]] StmtId add_delay(std::uint64_t ticks, StmtId next, SourceSpan source);
+    [[nodiscard]] StmtId add_if(ExprId condition, StmtId then_stmt,
+                                std::optional<StmtId> else_stmt, SourceSpan source);
+    [[nodiscard]] StmtId add_finish(SourceSpan source);
+    [[nodiscard]] StmtId add_display_stub(SourceSpan source);
+    [[nodiscard]] StmtId add_empty(SourceSpan source);
+    [[nodiscard]] ProcessId add_process(ProcessKind kind, std::vector<TimingSense> sensitivity,
+                                        std::vector<SignalId> read_signals, StmtId body,
+                                        SourceSpan source);
+
     [[nodiscard]] const std::vector<Signal>& signals() const;
     [[nodiscard]] const std::vector<Expression>& expressions() const;
     [[nodiscard]] const std::vector<LValue>& lvalues() const;
     [[nodiscard]] const std::vector<ContinuousAssign>& continuous_assigns() const;
+    [[nodiscard]] const std::vector<Statement>& statements() const;
+    [[nodiscard]] const std::vector<Process>& processes() const;
 
     [[nodiscard]] std::vector<std::string> validate() const;
     [[nodiscard]] std::optional<std::vector<ContinuousAssignId>> continuous_order() const;
@@ -209,6 +289,8 @@ private:
     std::vector<Expression> expressions_;
     std::vector<LValue> lvalues_;
     mutable std::vector<ContinuousAssign> continuous_assigns_;
+    std::vector<Statement> statements_;
+    std::vector<Process> processes_;
 };
 
 }  // namespace a1::ir
