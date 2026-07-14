@@ -280,6 +280,51 @@ int main() {
         A1_EXPECT(signal_binary(result, a) == "1");  // $finish 收尾时提交
     }
 
+    // Case 9：初始 settle 的初始化跳变（z→1）不构成 posedge —— iverilog 交叉验证 q==0。
+    {
+        ModelIR model;
+        const auto w = model.add_signal("top.w", kLogic1, SignalKind::Net, kSource);
+        const auto q = model.add_signal("top.q", kLogic1, SignalKind::Variable, kSource);
+        static_cast<void>(model.add_continuous_assign(
+            model.add_whole_signal_lvalue(w, kLogic1, kSource),
+            model.add_constant(LogicValue::from_binary("1"), kLogic1, kSource), kSource));
+
+        static_cast<void>(model.add_process(ProcessKind::Always,
+                                            {TimingSense{EdgeSense::Posedge, w}}, {},
+                                            assign_const(model, q, kLogic1, "1"), kSource));
+        static_cast<void>(model.add_process(
+            ProcessKind::Initial, {}, {},
+            model.add_seq_block(
+                {assign_const(model, q, kLogic1, "0"),
+                 model.add_delay(1, model.add_finish(kSource), kSource)},
+                kSource),
+            kSource));
+
+        const auto result = run_model(model);
+        A1_EXPECT(!result.error);
+        A1_EXPECT(result.finished);
+        A1_EXPECT(signal_binary(result, q) == "0");  // 无伪初始化 posedge
+    }
+
+    // Case 10：过程赋值目标为 Net → run_model 失败关闭（返回错误而非抛异常）。
+    {
+        ModelIR model;
+        const auto n = model.add_signal("top.n", kLogic1, SignalKind::Net, kSource);
+        static_cast<void>(model.add_process(
+            ProcessKind::Initial, {}, {},
+            model.add_blocking_assign(
+                model.add_whole_signal_lvalue(n, kLogic1, kSource),
+                model.add_constant(LogicValue::from_binary("1"), kLogic1, kSource),
+                kSource),
+            kSource));
+
+        const auto result = run_model(model);
+        A1_EXPECT(result.error.has_value());
+        A1_EXPECT(result.error->find("invalid model") != std::string::npos);
+        A1_EXPECT(result.error->find("process assignment target must be a variable") !=
+                  std::string::npos);
+    }
+
     // 空模型：无进程即成功返回。
     {
         const auto result = run_model(ModelIR{});

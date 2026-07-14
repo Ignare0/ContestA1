@@ -275,5 +275,31 @@ int main() {
         A1_EXPECT(contains(diagnostics, "statement reference is out of range"));
     }
 
+    {
+        // 过程赋值（阻塞/非阻塞）目标必须是 Variable，Net 目标应被 validate 拒绝。
+        ModelIR model;
+        const auto n = model.add_signal("top.n", kLogic1, SignalKind::Net, kSource);
+        const auto n_lvalue = model.add_whole_signal_lvalue(n, kLogic1, kSource);
+        const auto one = model.add_constant(LogicValue::from_binary("1"), kLogic1, kSource);
+        const auto blocking = model.add_blocking_assign(n_lvalue, one, kSource);
+        static_cast<void>(model.add_process(ProcessKind::Initial, {}, {}, blocking, kSource));
+
+        const auto diagnostics = model.validate();
+        A1_EXPECT(!diagnostics.empty());
+        A1_EXPECT(contains(diagnostics, "process assignment target must be a variable"));
+    }
+
+    {
+        ModelIR model;
+        const auto n = model.add_signal("top.n", kLogic1, SignalKind::Net, kSource);
+        const auto n_lvalue = model.add_whole_signal_lvalue(n, kLogic1, kSource);
+        const auto one = model.add_constant(LogicValue::from_binary("1"), kLogic1, kSource);
+        const auto nonblocking = model.add_nonblocking_assign(n_lvalue, one, kSource);
+        static_cast<void>(model.add_process(ProcessKind::Initial, {}, {}, nonblocking, kSource));
+
+        const auto diagnostics = model.validate();
+        A1_EXPECT(contains(diagnostics, "process assignment target must be a variable"));
+    }
+
     return EXIT_SUCCESS;
 }

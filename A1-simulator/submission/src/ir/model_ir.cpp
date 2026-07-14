@@ -403,6 +403,14 @@ std::vector<std::string> ModelIR::validate() const {
                                                  "assignment target is out of range");
                     append_invalid_id_diagnostic(diagnostics, payload.value, expressions_.size(),
                                                  "assignment value is out of range");
+                    if (is_valid(payload.target, lvalues_.size())) {
+                        const auto base = lvalue_base(lvalues_[payload.target.value]);
+                        if (is_valid(base, signals_.size()) &&
+                            signals_[base.value].kind != SignalKind::Variable) {
+                            diagnostics.emplace_back(
+                                "process assignment target must be a variable");
+                        }
+                    }
                 } else if constexpr (std::is_same_v<Payload, SeqBlockStmt>) {
                     for (const auto child : payload.statements) check_stmt(child);
                 } else if constexpr (std::is_same_v<Payload, DelayStmt>) {

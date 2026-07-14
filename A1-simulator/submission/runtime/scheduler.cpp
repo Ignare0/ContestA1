@@ -90,6 +90,8 @@ SimResult Scheduler::run() {
                                                             options_.delta_limit)) {
         return fail(std::move(*error));
     }
+    // 初始 settle 的初始化跳变（如 z→1）不构成边沿，重采快照且不唤醒。
+    snapshot_prev();
 
     while (true) {
         // --- Active + settle + wake + #0 pending 循环 ---
