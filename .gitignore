@@ -16,6 +16,10 @@ uv.lock
 
 # C and CMake ignores.
 build/
+.build/
+.build-*/
+A1-simulator/submission/.build/
+A1-simulator/submission/.build-*/
 install/
 compile_commands.json
 CMakeSettings.json
@@ -38,4 +42,6 @@ CMakeUserPresets.json
 
 */testcases/*
 
+# Superpowers local artifacts
 */superpowers/*
+.superpowers/
