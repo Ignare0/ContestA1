@@ -8,18 +8,27 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "slang/ast/Compilation.h"
 #include "slang/ast/Expression.h"
+#include "slang/ast/SemanticFacts.h"
+#include "slang/ast/Statement.h"
+#include "slang/ast/TimingControl.h"
 #include "slang/ast/expressions/AssignmentExpressions.h"
+#include "slang/ast/expressions/CallExpression.h"
 #include "slang/ast/expressions/ConversionExpression.h"
 #include "slang/ast/expressions/LiteralExpressions.h"
 #include "slang/ast/expressions/MiscExpressions.h"
 #include "slang/ast/expressions/OperatorExpressions.h"
 #include "slang/ast/expressions/SelectExpressions.h"
+#include "slang/ast/statements/ConditionalStatements.h"
+#include "slang/ast/statements/MiscStatements.h"
 #include "slang/ast/symbols/BlockSymbols.h"
 #include "slang/ast/symbols/CompilationUnitSymbols.h"
 #include "slang/ast/symbols/InstanceSymbols.h"
@@ -40,13 +49,20 @@ using slang::ast::ArgumentDirection;
 using slang::ast::AssignmentExpression;
 using slang::ast::BinaryExpression;
 using slang::ast::BinaryOperator;
+using slang::ast::BlockStatement;
+using slang::ast::CallExpression;
 using slang::ast::Compilation;
 using slang::ast::ConditionalExpression;
+using slang::ast::ConditionalStatement;
 using slang::ast::ContinuousAssignSymbol;
 using slang::ast::ConversionExpression;
+using slang::ast::DelayControl;
+using slang::ast::EdgeKind;
 using slang::ast::ElementSelectExpression;
+using slang::ast::EventListControl;
 using slang::ast::Expression;
 using slang::ast::ExpressionKind;
+using slang::ast::ExpressionStatement;
 using slang::ast::GenerateBlockArraySymbol;
 using slang::ast::GenerateBlockSymbol;
 using slang::ast::InstanceBodySymbol;
@@ -57,14 +73,23 @@ using slang::ast::NetSymbol;
 using slang::ast::NetType;
 using slang::ast::ParameterSymbol;
 using slang::ast::PortSymbol;
+using slang::ast::ProceduralBlockKind;
 using slang::ast::ProceduralBlockSymbol;
 using slang::ast::RangeSelectExpression;
 using slang::ast::RangeSelectionKind;
 using slang::ast::ReplicationExpression;
 using slang::ast::Scope;
+using slang::ast::SignalEventControl;
+using slang::ast::Statement;
+using slang::ast::StatementBlockKind;
+using slang::ast::StatementKind;
+using slang::ast::StatementList;
 using slang::ast::Symbol;
 using slang::ast::SymbolKind;
+using slang::ast::TimedStatement;
+using slang::ast::TimingControlKind;
 using slang::ast::Type;
+using slang::ast::UniquePriorityCheck;
 using slang::ast::UnaryExpression;
 using slang::ast::UnaryOperator;
 using slang::ast::ValueSymbol;
@@ -78,6 +103,7 @@ struct LoweringContext {
     std::unordered_map<const ValueSymbol*, ir::SignalId> signals;
     std::vector<const ContinuousAssignSymbol*> assignments;
     std::vector<const NetSymbol*> initialized_nets;
+    std::vector<const ProceduralBlockSymbol*> procedural_blocks;
     std::optional<Diagnostic> failure;
 
     [[nodiscard]] ir::SourceSpan source(slang::SourceRange range) const {
@@ -182,15 +208,25 @@ struct LoweringContext {
         return id;
     }
 
-    [[nodiscard]] std::optional<ir::SignalId> lvalue_signal(const Expression& expression) {
+    // 连续赋值目标必须是 Net；过程赋值目标必须是 Variable（Net/memory → unsupported）。
+    void fail_lvalue(bool procedural, slang::SourceRange range) {
+        if (procedural)
+            fail_unsupported("procedural assignment target", range);
+        else
+            fail("unsupported continuous-assignment lvalue", range);
+    }
+
+    [[nodiscard]] std::optional<ir::SignalId> lvalue_signal(const Expression& expression,
+                                                             bool procedural) {
+        const auto expected = procedural ? SymbolKind::Variable : SymbolKind::Net;
         const auto* named = expression.as_if<NamedValueExpression>();
-        if (named == nullptr || named->symbol.kind != SymbolKind::Net) {
-            fail("unsupported continuous-assignment lvalue", expression.sourceRange);
+        if (named == nullptr || named->symbol.kind != expected) {
+            fail_lvalue(procedural, expression.sourceRange);
             return std::nullopt;
         }
         const auto id = signal_id(named->symbol);
         if (!id) {
-            fail("continuous-assignment lvalue signal was not lowered", expression.sourceRange);
+            fail_lvalue(procedural, expression.sourceRange);
             return std::nullopt;
         }
         return *id;
@@ -257,22 +293,24 @@ struct LoweringContext {
         return model.add_constant(*logic, *packed, source(range));
     }
 
-    [[nodiscard]] std::optional<ir::LValueId> lower_lvalue(const Expression& expression) {
+    [[nodiscard]] std::optional<ir::LValueId> lower_lvalue(const Expression& expression,
+                                                            bool procedural = false) {
         const auto target_type = packed_type(*expression.type, expression.sourceRange);
         if (!target_type)
             return std::nullopt;
 
         if (const auto* named = expression.as_if<NamedValueExpression>()) {
+            const auto expected = procedural ? SymbolKind::Variable : SymbolKind::Net;
             const auto id = signal_id(named->symbol);
-            if (!id || named->symbol.kind != SymbolKind::Net) {
-                fail("unsupported continuous-assignment lvalue", expression.sourceRange);
+            if (!id || named->symbol.kind != expected) {
+                fail_lvalue(procedural, expression.sourceRange);
                 return std::nullopt;
             }
             return model.add_whole_signal_lvalue(*id, *target_type, source(expression.sourceRange));
         }
 
         if (const auto* select = expression.as_if<ElementSelectExpression>()) {
-            const auto id = lvalue_signal(select->value());
+            const auto id = lvalue_signal(select->value(), procedural);
             const auto index = constant_index(select->selector());
             if (!id || !index)
                 goto invalid_lvalue;
@@ -289,7 +327,7 @@ struct LoweringContext {
                 fail("unsupported dynamic range select", expression.sourceRange);
                 return std::nullopt;
             }
-            const auto id = lvalue_signal(select->value());
+            const auto id = lvalue_signal(select->value(), procedural);
             const auto left = constant_index(select->left());
             const auto right = constant_index(select->right());
             if (!id || !left || !right)
@@ -317,10 +355,10 @@ struct LoweringContext {
         }
 
         if (const auto* conversion = expression.as_if<ConversionExpression>())
-            return lower_lvalue(conversion->operand());
+            return lower_lvalue(conversion->operand(), procedural);
 
     invalid_lvalue:
-        fail("unsupported continuous-assignment lvalue", expression.sourceRange);
+        fail_lvalue(procedural, expression.sourceRange);
         return std::nullopt;
     }
 
@@ -552,6 +590,264 @@ struct LoweringContext {
         return true;
     }
 
+    [[nodiscard]] std::optional<std::uint64_t> constant_delay(const Expression& expression) {
+        const slang::ConstantValue* constant = expression.getConstant();
+        std::optional<slang::SVInt> value;
+        if (constant != nullptr && constant->isInteger())
+            value = constant->integer();
+        else if (expression.kind == ExpressionKind::IntegerLiteral)
+            value = expression.as<IntegerLiteral>().getValue();
+        if (!value || value->hasUnknown())
+            return std::nullopt;
+        return value->as<std::uint64_t>();
+    }
+
+    [[nodiscard]] std::optional<ir::StmtId> lower_expression_statement(
+        const ExpressionStatement& statement) {
+        const auto span = source(statement.sourceRange);
+        const auto& expression = statement.expr;
+
+        if (const auto* assignment = expression.as_if<AssignmentExpression>()) {
+            if (assignment->isCompound() || assignment->timingControl != nullptr) {
+                fail_unsupported("Assignment", expression.sourceRange);
+                return std::nullopt;
+            }
+            const auto target = lower_lvalue(assignment->left(), /*procedural=*/true);
+            const auto value = lower_expression(assignment->right());
+            if (!target || !value)
+                return std::nullopt;
+            if (assignment->isNonBlocking())
+                return model.add_nonblocking_assign(*target, *value, span);
+            return model.add_blocking_assign(*target, *value, span);
+        }
+
+        if (const auto* call = expression.as_if<CallExpression>()) {
+            if (call->isSystemCall()) {
+                const auto name = call->getSubroutineName();
+                if (name == "$finish")
+                    return model.add_finish(span);
+                // $display/$error 降级为无实参 stub（丢弃实参）。
+                if (name == "$display" || name == "$error")
+                    return model.add_display_stub(span);
+            }
+            fail_unsupported("Call", expression.sourceRange);
+            return std::nullopt;
+        }
+
+        fail_unsupported(slang::ast::toString(expression.kind), expression.sourceRange);
+        return std::nullopt;
+    }
+
+    [[nodiscard]] std::optional<ir::StmtId> lower_statement(const Statement& statement) {
+        const auto span = source(statement.sourceRange);
+        switch (statement.kind) {
+            case StatementKind::Empty:
+                return model.add_empty(span);
+            case StatementKind::List: {
+                std::vector<ir::StmtId> children;
+                for (const auto* child : statement.as<StatementList>().list) {
+                    const auto lowered = lower_statement(*child);
+                    if (!lowered)
+                        return std::nullopt;
+                    children.push_back(*lowered);
+                }
+                return model.add_seq_block(std::move(children), span);
+            }
+            case StatementKind::Block: {
+                const auto& block = statement.as<BlockStatement>();
+                if (block.blockKind != StatementBlockKind::Sequential) {
+                    fail_unsupported("fork-join block", statement.sourceRange);
+                    return std::nullopt;
+                }
+                const auto body = lower_statement(block.body);
+                if (!body)
+                    return std::nullopt;
+                return model.add_seq_block({*body}, span);
+            }
+            case StatementKind::ExpressionStatement:
+                return lower_expression_statement(statement.as<ExpressionStatement>());
+            case StatementKind::Timed: {
+                const auto& timed = statement.as<TimedStatement>();
+                if (timed.timing.kind != TimingControlKind::Delay) {
+                    fail_unsupported(slang::ast::toString(timed.timing.kind),
+                                     timed.timing.sourceRange);
+                    return std::nullopt;
+                }
+                const auto& delay = timed.timing.as<DelayControl>();
+                const auto ticks = constant_delay(delay.expr);
+                if (!ticks) {
+                    fail_unsupported("non-constant delay", delay.expr.sourceRange);
+                    return std::nullopt;
+                }
+                const auto next = lower_statement(timed.stmt);
+                if (!next)
+                    return std::nullopt;
+                return model.add_delay(*ticks, *next, span);
+            }
+            case StatementKind::Conditional: {
+                const auto& conditional = statement.as<ConditionalStatement>();
+                if (conditional.conditions.size() != 1 ||
+                    conditional.conditions.front().pattern != nullptr ||
+                    conditional.check != UniquePriorityCheck::None) {
+                    fail_unsupported("Conditional", statement.sourceRange);
+                    return std::nullopt;
+                }
+                const auto condition = lower_expression(*conditional.conditions.front().expr);
+                const auto then_stmt = lower_statement(conditional.ifTrue);
+                if (!condition || !then_stmt)
+                    return std::nullopt;
+                std::optional<ir::StmtId> else_stmt;
+                if (conditional.ifFalse != nullptr) {
+                    else_stmt = lower_statement(*conditional.ifFalse);
+                    if (!else_stmt)
+                        return std::nullopt;
+                }
+                return model.add_if(*condition, *then_stmt, else_stmt, span);
+            }
+            default:
+                fail_unsupported(slang::ast::toString(statement.kind), statement.sourceRange);
+                return std::nullopt;
+        }
+    }
+
+    [[nodiscard]] bool lower_signal_event(const SignalEventControl& event,
+                                          std::vector<ir::TimingSense>& sensitivity) {
+        if (event.iffCondition != nullptr) {
+            fail_unsupported("event iff condition", event.sourceRange);
+            return false;
+        }
+        ir::EdgeSense sense;
+        switch (event.edge) {
+            case EdgeKind::None: sense = ir::EdgeSense::AnyChange; break;
+            case EdgeKind::PosEdge: sense = ir::EdgeSense::Posedge; break;
+            case EdgeKind::NegEdge: sense = ir::EdgeSense::Negedge; break;
+            default:
+                // SV `edge` / BothEdges 不支持。
+                fail_unsupported("edge sensitivity", event.sourceRange);
+                return false;
+        }
+        const Expression* expression = &event.expr;
+        while (const auto* conversion = expression->as_if<ConversionExpression>())
+            expression = &conversion->operand();
+        const auto* named = expression->as_if<NamedValueExpression>();
+        std::optional<ir::SignalId> id;
+        if (named != nullptr)
+            id = signal_id(named->symbol);
+        if (!id) {
+            fail_unsupported("event expression", event.expr.sourceRange);
+            return false;
+        }
+        sensitivity.push_back({sense, *id});
+        return true;
+    }
+
+    // @* read_signals（IEEE 1364-2005 §9.7.5）：收集 RHS 与 if 条件中的读；
+    // 赋值目标基信号不因作为目标而进入列表。Phase 1 的 LValue 位/段选偏移在
+    // lowering 期即折叠为常量，动态下标 lvalue 已 fail-closed，故无目标下标读可收集。
+    [[nodiscard]] std::vector<ir::SignalId> collect_statement_reads(ir::StmtId body) const {
+        std::vector<ir::SignalId> reads;
+        std::unordered_set<std::uint32_t> seen;
+        const auto add_reads = [&](ir::ExprId value) {
+            for (const auto signal : model.collect_reads(value)) {
+                if (seen.insert(signal.value).second)
+                    reads.push_back(signal);
+            }
+        };
+        std::vector<ir::StmtId> pending{body};
+        std::unordered_set<std::uint32_t> visited;
+        while (!pending.empty()) {
+            const auto id = pending.back();
+            pending.pop_back();
+            if (!visited.insert(id.value).second)
+                continue;
+            std::visit(
+                [&](const auto& payload) {
+                    using Payload = std::decay_t<decltype(payload)>;
+                    if constexpr (std::is_same_v<Payload, ir::BlockingAssignStmt> ||
+                                  std::is_same_v<Payload, ir::NonBlockingAssignStmt>) {
+                        add_reads(payload.value);
+                    } else if constexpr (std::is_same_v<Payload, ir::SeqBlockStmt>) {
+                        for (const auto child : payload.statements)
+                            pending.push_back(child);
+                    } else if constexpr (std::is_same_v<Payload, ir::DelayStmt>) {
+                        pending.push_back(payload.next);
+                    } else if constexpr (std::is_same_v<Payload, ir::IfStmt>) {
+                        add_reads(payload.condition);
+                        pending.push_back(payload.then_stmt);
+                        if (payload.else_stmt.has_value())
+                            pending.push_back(*payload.else_stmt);
+                    }
+                },
+                model.statements().at(id.value).payload);
+        }
+        return reads;
+    }
+
+    [[nodiscard]] bool lower_procedural_block(const ProceduralBlockSymbol& block) {
+        const auto block_range = slang::SourceRange(block.location, block.location);
+        switch (block.procedureKind) {
+            case ProceduralBlockKind::Initial: {
+                const auto body = lower_statement(block.getBody());
+                if (!body)
+                    return false;
+                static_cast<void>(model.add_process(ir::ProcessKind::Initial, {}, {}, *body,
+                                                    source(block)));
+                return true;
+            }
+            case ProceduralBlockKind::Always:
+                break;
+            default:
+                // always_comb/always_ff/always_latch/final 一律 fail-closed，不降级。
+                fail("unsupported procedural block " +
+                         std::string(slang::ast::toString(block.procedureKind)) + " at " +
+                         location_text(block_range),
+                     block);
+                return false;
+        }
+
+        const auto* timed = block.getBody().as_if<TimedStatement>();
+        if (timed == nullptr) {
+            fail_unsupported("always timing control", block.getBody().sourceRange);
+            return false;
+        }
+        std::vector<ir::TimingSense> sensitivity;
+        bool implicit = false;
+        switch (timed->timing.kind) {
+            case TimingControlKind::ImplicitEvent:
+                implicit = true;
+                break;
+            case TimingControlKind::SignalEvent:
+                if (!lower_signal_event(timed->timing.as<SignalEventControl>(), sensitivity))
+                    return false;
+                break;
+            case TimingControlKind::EventList:
+                for (const auto* event : timed->timing.as<EventListControl>().events) {
+                    const auto* signal_event = event->as_if<SignalEventControl>();
+                    if (signal_event == nullptr) {
+                        fail_unsupported(slang::ast::toString(event->kind), event->sourceRange);
+                        return false;
+                    }
+                    if (!lower_signal_event(*signal_event, sensitivity))
+                        return false;
+                }
+                break;
+            default:
+                fail_unsupported(slang::ast::toString(timed->timing.kind),
+                                 timed->timing.sourceRange);
+                return false;
+        }
+
+        const auto body = lower_statement(timed->stmt);
+        if (!body)
+            return false;
+        std::vector<ir::SignalId> reads;
+        if (implicit)
+            reads = collect_statement_reads(*body);
+        static_cast<void>(model.add_process(ir::ProcessKind::Always, std::move(sensitivity),
+                                            std::move(reads), *body, source(block)));
+        return true;
+    }
+
     [[nodiscard]] bool lower_net_initializer(const NetSymbol& net) {
         if (net.getInitializer() == nullptr)
             return true;
@@ -595,8 +891,8 @@ struct LoweringContext {
                     assignments.push_back(&symbol.as<ContinuousAssignSymbol>());
                     break;
                 case SymbolKind::ProceduralBlock:
-                    fail("unsupported procedural block", symbol);
-                    return false;
+                    procedural_blocks.push_back(&symbol.as<ProceduralBlockSymbol>());
+                    break;
                 case SymbolKind::Instance:
                     fail("unsupported child instance " + symbol.getHierarchicalPath() +
                              ": port binding not implemented",
@@ -649,6 +945,10 @@ struct LoweringContext {
         }
         for (const auto* assignment : assignments) {
             if (!lower_assignment(*assignment))
+                return false;
+        }
+        for (const auto* block : procedural_blocks) {
+            if (!lower_procedural_block(*block))
                 return false;
         }
         return !failure;

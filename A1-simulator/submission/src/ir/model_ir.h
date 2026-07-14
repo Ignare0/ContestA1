@@ -281,8 +281,10 @@ public:
     [[nodiscard]] std::vector<std::string> validate() const;
     [[nodiscard]] std::optional<std::vector<ContinuousAssignId>> continuous_order() const;
 
-private:
+    // 供 frontend 复用（@* read_signals 收集，IEEE 1364-2005 §9.7.5）。
     [[nodiscard]] std::vector<SignalId> collect_reads(ExprId value) const;
+
+private:
     void refresh_read_sets() const;
 
     std::vector<Signal> signals_;
