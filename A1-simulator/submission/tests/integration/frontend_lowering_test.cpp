@@ -328,6 +328,12 @@ int main() {
         const auto& target = std::get<a1::ir::RangeSelectLValue>(model.lvalues().front().payload);
         A1_EXPECT(target.bit_offset == 2);
         A1_EXPECT(target.width == 2);
+        A1_EXPECT(model.continuous_assigns().size() == 1);
+        const auto& rhs =
+            model.expressions().at(model.continuous_assigns().front().value.value);
+        const auto& select = std::get<a1::ir::RangeSelectExpr>(rhs.payload);
+        A1_EXPECT(select.bit_offset == 2);
+        A1_EXPECT(select.width == 2);
     }
 
     {
@@ -337,6 +343,7 @@ int main() {
         const auto result = a1::frontend::compile_to_ir(spec);
         A1_EXPECT(!result.model.has_value());
         A1_EXPECT(result.diagnostics.size() == 1);
+        A1_EXPECT(result.diagnostics.front().message.starts_with("unsupported special net"));
     }
 
     {

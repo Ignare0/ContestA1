@@ -367,6 +367,11 @@ struct LoweringContext {
                std::to_string(span.column);
     }
 
+    void fail_unsupported(std::string_view kind, slang::SourceRange range) {
+        fail(std::string("unsupported ") + std::string(kind) + " at " + location_text(range),
+             range);
+    }
+
     [[nodiscard]] std::optional<ir::ExprId> lower_expression(const Expression& expression) {
         const auto type = packed_type(*expression.type, expression.sourceRange);
         if (!type)
@@ -412,17 +417,30 @@ struct LoweringContext {
                 const auto op = binary_op(binary.op, binary.opRange);
                 if (!lhs || !rhs || !op)
                     return std::nullopt;
-                const auto operation_type = packed_type(
-                    *binary.left().type, binary.left().sourceRange);
-                if (!operation_type)
+                const bool is_shift = *op == ir::BinaryOp::ShiftLeft ||
+                                     *op == ir::BinaryOp::LogicalShiftRight ||
+                                     *op == ir::BinaryOp::ArithmeticShiftRight;
+                const auto left_type =
+                    packed_type(*binary.left().type, binary.left().sourceRange);
+                if (!left_type)
                     return std::nullopt;
-                return model.add_binary(*op, *lhs, *rhs, *operation_type, *type, source_span);
+                if (!is_shift) {
+                    const auto right_type =
+                        packed_type(*binary.right().type, binary.right().sourceRange);
+                    if (!right_type)
+                        return std::nullopt;
+                    if (*left_type != *right_type) {
+                        fail_unsupported("BinaryOp", binary.opRange);
+                        return std::nullopt;
+                    }
+                }
+                return model.add_binary(*op, *lhs, *rhs, *left_type, *type, source_span);
             }
             case ExpressionKind::ConditionalOp: {
                 const auto& conditional = expression.as<ConditionalExpression>();
                 if (conditional.conditions.size() != 1 ||
                     conditional.conditions.front().pattern != nullptr) {
-                    fail("unsupported conditional expression", expression.sourceRange);
+                    fail_unsupported("ConditionalOp", expression.sourceRange);
                     return std::nullopt;
                 }
                 const auto condition = lower_expression(*conditional.conditions.front().expr);
@@ -496,24 +514,16 @@ struct LoweringContext {
                                                   std::min(left_offset, right_offset)),
                                               width, *type, source_span);
             }
-            case ExpressionKind::Assignment: {
-                const auto& assignment = expression.as<AssignmentExpression>();
-                if (assignment.isCompound() || assignment.timingControl != nullptr ||
-                    assignment.isNonBlocking()) {
-                    fail("unsupported assignment expression", expression.sourceRange);
-                    return std::nullopt;
-                }
-                return lower_expression(assignment.right());
-            }
+            case ExpressionKind::Assignment:
+                fail_unsupported("Assignment", expression.sourceRange);
+                return std::nullopt;
             default:
-                fail("unsupported " + std::string(slang::ast::toString(expression.kind)) +
-                         " at " + location_text(expression.sourceRange),
-                     expression.sourceRange);
+                fail_unsupported(slang::ast::toString(expression.kind), expression.sourceRange);
                 return std::nullopt;
         }
 
     invalid_expression:
-        fail("unsupported expression select", expression.sourceRange);
+        fail_unsupported(slang::ast::toString(expression.kind), expression.sourceRange);
         return std::nullopt;
     }
 
