@@ -539,4 +539,10 @@ std::vector<SignalId> ModelIR::collect_reads(ExprId value) const {
     return reads;
 }
 
+void ModelIR::mark_self_loop_net_two_state(SignalId signal) {
+    auto& entry = signals_.at(signal.value);
+    if (entry.kind == SignalKind::Net && entry.type.width == 1)
+        entry.type.is_four_state = false;
+}
+
 }  // namespace a1::ir

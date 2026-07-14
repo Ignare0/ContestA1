@@ -283,6 +283,7 @@ public:
 
     // 供 frontend 复用（@* read_signals 收集，IEEE 1364-2005 §9.7.5）。
     [[nodiscard]] std::vector<SignalId> collect_reads(ExprId value) const;
+    void mark_self_loop_net_two_state(SignalId signal);
 
 private:
     void refresh_read_sets() const;

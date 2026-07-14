@@ -306,7 +306,8 @@ struct LoweringContext {
                 fail_lvalue(procedural, expression.sourceRange);
                 return std::nullopt;
             }
-            return model.add_whole_signal_lvalue(*id, *target_type, source(expression.sourceRange));
+            return model.add_whole_signal_lvalue(*id, model.signals()[id->value].type,
+                                                   source(expression.sourceRange));
         }
 
         if (const auto* select = expression.as_if<ElementSelectExpression>()) {
@@ -581,6 +582,16 @@ struct LoweringContext {
             assignment->isNonBlocking()) {
             fail("unsupported continuous assignment", expression.sourceRange);
             return false;
+        }
+        const auto* target_named = assignment->left().as_if<NamedValueExpression>();
+        const auto* invert = assignment->right().as_if<UnaryExpression>();
+        if (target_named != nullptr && target_named->symbol.kind == SymbolKind::Net &&
+            invert != nullptr && invert->op == UnaryOperator::BitwiseNot) {
+            if (const auto* source_named = invert->operand().as_if<NamedValueExpression>();
+                source_named != nullptr && &source_named->symbol == &target_named->symbol) {
+                if (const auto target_id = signal_id(target_named->symbol))
+                    model.mark_self_loop_net_two_state(*target_id);
+            }
         }
         const auto target = lower_lvalue(assignment->left());
         const auto value = lower_expression(assignment->right());

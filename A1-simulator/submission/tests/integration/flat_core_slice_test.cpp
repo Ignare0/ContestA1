@@ -19,6 +19,7 @@ using a1::ir::Process;
 using a1::ir::ProcessKind;
 using a1::ir::SignalId;
 using a1::runtime::run_model;
+using a1::runtime::SimOptions;
 
 ProjectSpec fixture(std::string_view name, std::string_view source,
                     std::string_view top = "top") {
@@ -48,6 +49,21 @@ const Process* find_process(const ModelIR& model, ProcessKind kind) {
 bool reads_contain(const Process& process, SignalId signal) {
     return std::find(process.read_signals.begin(), process.read_signals.end(), signal) !=
            process.read_signals.end();
+}
+
+std::optional<SignalId> find_signal_suffix(const ModelIR& model, std::string_view suffix) {
+    for (std::uint32_t index = 0; index < model.signals().size(); ++index) {
+        const auto& path = model.signals()[index].canonical_path;
+        if (path.size() >= suffix.size() &&
+            path.compare(path.size() - suffix.size(), suffix.size(), suffix) == 0)
+            return SignalId{index};
+    }
+    return std::nullopt;
+}
+
+std::string signal_binary(const a1::runtime::SimResult& result, SignalId signal) {
+    return result.final_store ? result.final_store->value(signal).to_binary()
+                              : std::string("<no final store>");
 }
 
 }  // namespace
@@ -105,9 +121,145 @@ int main() {
         A1_EXPECT(!result.error);
         A1_EXPECT(result.finished);
         A1_EXPECT(result.final_store != nullptr);
-        const auto q = find_signal(model, "flat_core.q");
+        const auto q = find_signal_suffix(model, ".q");
         A1_EXPECT(q.has_value());
-        A1_EXPECT(result.final_store->value(*q).to_binary() == "1");
+        A1_EXPECT(signal_binary(result, *q) == "1");
+    }
+
+    {
+        // Blocking vs NBA 同槽：#0 后 NBA 未提交，$finish 收尾提交，最终 a==0。
+        const auto spec = fixture(
+            "flat-core-slice-order-slot-zero",
+            "module order_slot;\n"
+            "  reg a;\n"
+            "  initial begin\n"
+            "    a = 1'b1;\n"
+            "    a <= 1'b0;\n"
+            "    #0;\n"
+            "    $finish;\n"
+            "  end\n"
+            "endmodule\n",
+            "order_slot");
+        const auto compiled = a1::frontend::compile_to_ir(spec);
+        A1_EXPECT(compiled.diagnostics.empty());
+        A1_EXPECT(compiled.model.has_value());
+        const auto result = run_model(*compiled.model);
+        A1_EXPECT(!result.error);
+        A1_EXPECT(result.finished);
+        const auto a = find_signal(*compiled.model, "order_slot.a");
+        A1_EXPECT(a.has_value());
+        A1_EXPECT(signal_binary(result, *a) == "0");
+    }
+
+    {
+        // Blocking vs NBA 同槽：无 #0，$finish 立即收尾提交 NBA，最终 a==0。
+        const auto spec = fixture(
+            "flat-core-slice-order-slot-finish",
+            "module order_slot;\n"
+            "  reg a;\n"
+            "  initial begin\n"
+            "    a = 1'b1;\n"
+            "    a <= 1'b0;\n"
+            "    $finish;\n"
+            "  end\n"
+            "endmodule\n",
+            "order_slot");
+        const auto compiled = a1::frontend::compile_to_ir(spec);
+        A1_EXPECT(compiled.diagnostics.empty());
+        A1_EXPECT(compiled.model.has_value());
+        const auto result = run_model(*compiled.model);
+        A1_EXPECT(!result.error);
+        A1_EXPECT(result.finished);
+        const auto a = find_signal(*compiled.model, "order_slot.a");
+        A1_EXPECT(a.has_value());
+        A1_EXPECT(signal_binary(result, *a) == "0");
+    }
+
+    {
+        // 组合连续赋值 + #delay 采样：sample == a + b。
+        const auto spec = fixture(
+            "flat-core-slice-combo",
+            "module combo_slice;\n"
+            "  reg [3:0] a, b;\n"
+            "  wire [3:0] sum;\n"
+            "  reg [3:0] sample;\n"
+            "  assign sum = a + b;\n"
+            "  initial begin\n"
+            "    a = 4'h1; b = 4'h2;\n"
+            "    #1 sample = sum;\n"
+            "    $finish;\n"
+            "  end\n"
+            "endmodule\n",
+            "combo_slice");
+        const auto compiled = a1::frontend::compile_to_ir(spec);
+        A1_EXPECT(compiled.diagnostics.empty());
+        A1_EXPECT(compiled.model.has_value());
+        const auto result = run_model(*compiled.model);
+        A1_EXPECT(!result.error);
+        A1_EXPECT(result.finished);
+        A1_EXPECT(result.time == 1);
+        const auto sample = find_signal(*compiled.model, "combo_slice.sample");
+        A1_EXPECT(sample.has_value());
+        A1_EXPECT(signal_binary(result, *sample) == "0011");
+    }
+
+    {
+        // #0 后表达式 wire 得新值：a=1 后立刻读 y=~a 为旧值，#0 后再读为新值。
+        const auto spec = fixture(
+            "flat-core-slice-wire-zero",
+            "module wire_zero;\n"
+            "  reg a;\n"
+            "  wire y;\n"
+            "  reg t1, t2;\n"
+            "  assign y = ~a;\n"
+            "  initial begin\n"
+            "    a = 1'b0;\n"
+            "    #1 begin\n"
+            "      a = 1'b1;\n"
+            "      t1 = y;\n"
+            "      #0 begin\n"
+            "        t2 = y;\n"
+            "        $finish;\n"
+            "      end\n"
+            "    end\n"
+            "  end\n"
+            "endmodule\n",
+            "wire_zero");
+        const auto compiled = a1::frontend::compile_to_ir(spec);
+        A1_EXPECT(compiled.diagnostics.empty());
+        A1_EXPECT(compiled.model.has_value());
+        const auto result = run_model(*compiled.model);
+        A1_EXPECT(!result.error);
+        A1_EXPECT(result.finished);
+        const auto& model = *compiled.model;
+        const auto t1 = find_signal(model, "wire_zero.t1");
+        const auto t2 = find_signal(model, "wire_zero.t2");
+        A1_EXPECT(t1.has_value() && t2.has_value());
+        A1_EXPECT(signal_binary(result, *t1) == "1");  // 旧值 ~0
+        A1_EXPECT(signal_binary(result, *t2) == "0");  // #0 后新值 ~1
+    }
+
+    {
+        // 不收敛环：assign a = ~a 触发 delta cycle limit。
+        const auto spec = fixture(
+            "flat-core-slice-osc",
+            "module osc;\n"
+            "  wire a;\n"
+            "  assign a = ~a;\n"
+            "  initial #1 $finish;\n"
+            "endmodule\n",
+            "osc");
+        const auto compiled = a1::frontend::compile_to_ir(spec);
+        A1_EXPECT(compiled.diagnostics.empty());
+        A1_EXPECT(compiled.model.has_value());
+        const auto a_sig = find_signal(*compiled.model, "osc.a");
+        A1_EXPECT(a_sig.has_value());
+        A1_EXPECT(!compiled.model->signals()[a_sig->value].type.is_four_state);
+        SimOptions options;
+        options.delta_limit = 4;
+        const auto result = run_model(*compiled.model, options);
+        A1_EXPECT(result.error.has_value());
+        A1_EXPECT(result.error->find("delta cycle limit exceeded") != std::string::npos);
     }
 
     {
