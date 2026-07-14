@@ -363,12 +363,16 @@ int main() {
         const auto input = model.add_signal("top.input", kLogic1, SignalKind::Net, kSource);
         const auto x = model.add_signal("top.x", kLogic1, SignalKind::Net, kSource);
         const auto y = model.add_signal("top.y", kLogic1, SignalKind::Net, kSource);
+        const auto y_or_input = model.add_binary(
+            BinaryOp::BitwiseOr, model.add_signal_ref(y, kLogic1, kSource),
+            model.add_signal_ref(input, kLogic1, kSource), kLogic1, kLogic1, kSource);
         static_cast<void>(model.add_continuous_assign(
-            model.add_whole_signal_lvalue(x, kLogic1, kSource),
-            model.add_signal_ref(y, kLogic1, kSource), kSource));
+            model.add_whole_signal_lvalue(x, kLogic1, kSource), y_or_input, kSource));
         static_cast<void>(model.add_continuous_assign(
             model.add_whole_signal_lvalue(y, kLogic1, kSource),
-            model.add_signal_ref(input, kLogic1, kSource), kSource));
+            model.add_signal_ref(x, kLogic1, kSource), kSource));
+
+        A1_EXPECT(!model.continuous_order().has_value());
 
         SignalStore store(model);
         store.set_external_driver(input, LogicValue::ones(1));
@@ -376,6 +380,7 @@ int main() {
         A1_EXPECT(!error.has_value());
         A1_EXPECT(store.value(x).to_binary() == "1");
         A1_EXPECT(store.value(y).to_binary() == "1");
+        A1_EXPECT(store.value(input).to_binary() == "1");
     }
 
     return EXIT_SUCCESS;
