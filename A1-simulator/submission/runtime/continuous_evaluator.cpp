@@ -187,6 +187,9 @@ std::optional<std::string> ContinuousEvaluator::settle_with_limit(const ir::Mode
         return settle(model, store);
     }
 
+    const auto resolve_target = make_resolve_target(model, store);
+    resolve_all_nets(model, resolve_target);
+
     std::uint64_t iterations = 0;
     while (true) {
         if (!propagate_once(model, store)) {
